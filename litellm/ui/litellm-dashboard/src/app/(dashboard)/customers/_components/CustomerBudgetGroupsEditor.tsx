@@ -62,7 +62,6 @@ export default function CustomerBudgetGroupsEditor({
   memberGroups?: boolean;
 }) {
   const { t } = useTranslation();
-  const columns = memberGroups ? "sm:grid-cols-[1.3fr_1fr_1fr_3rem_2rem]" : "sm:grid-cols-[1.3fr_1fr_1fr_2rem]";
   const updateGroup = (id: string, patch: Partial<Omit<CustomerBudgetGroupFields, "id">>) =>
     onChange(
       groups.map((group) => (group.id === id ? { ...group, ...patch } : group)),
@@ -95,12 +94,6 @@ export default function CustomerBudgetGroupsEditor({
           {t(memberGroups ? "customerPortal.createDialog.groupsHelp" : "customerPortal.organizationGroups.help")}
         </p>
       </div>
-      <div className={`hidden gap-3 px-2 text-xs text-muted-foreground sm:grid ${columns}`} aria-hidden="true">
-        <span>{t("customerPortal.createDialog.groupName")}</span>
-        <span>{t("customerPortal.createDialog.monthly")}</span>
-        <span>{t("customerPortal.createDialog.yearly")}</span>
-        {memberGroups && <span>{t("customerPortal.createDialog.default")}</span>}
-      </div>
       <RadioGroup
         role={memberGroups ? "radiogroup" : "group"}
         value={defaultGroupId}
@@ -109,38 +102,105 @@ export default function CustomerBudgetGroupsEditor({
           memberGroups ? "customerPortal.createDialog.defaultGroup" : "customerPortal.organizationGroups.title",
         )}
         disabled={disabled}
-        className="gap-1"
+        className="gap-3"
       >
         {groups.map((group, index) => (
           <div
             key={group.id}
-            className={`grid grid-cols-2 items-center gap-3 rounded-md p-2 ${columns} ${memberGroups && group.id === defaultGroupId ? "bg-muted/60" : ""}`}
+            className={`space-y-3 rounded-lg border p-3 ${memberGroups && group.id === defaultGroupId ? "bg-muted/40" : ""}`}
           >
-            <div className="col-span-2 min-w-0 space-y-1.5 sm:col-span-1">
-              <Label htmlFor={`cc-group-${group.id}`} className="sm:sr-only">
-                {t("customerPortal.createDialog.groupNameLabel", { index: index + 1 })}
-              </Label>
-              <Input
-                id={`cc-group-${group.id}`}
-                value={group.name}
-                onChange={(event) => updateGroup(group.id, { name: event.target.value })}
-                className="font-mono text-xs"
-              />
-            </div>
-            {groupBudgetFields.map(([field, period]) => (
-              <div className="min-w-0 space-y-1.5" key={field}>
-                <Label htmlFor={`cc-${period}-${group.id}`} className="sm:sr-only">
-                  {t(`customerPortal.createDialog.${period}`)}
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Label htmlFor={`cc-group-${group.id}`} className="text-xs font-normal leading-4 text-muted-foreground">
+                  {t("customerPortal.createDialog.groupName")}
                 </Label>
-                <BudgetInput
-                  id={`cc-${period}-${group.id}`}
-                  label={t(`customerPortal.createDialog.${period}Label`, { index: index + 1 })}
-                  value={group[field]}
-                  onChange={(value) => updateGroup(group.id, { [field]: value })}
+                <Input
+                  id={`cc-group-${group.id}`}
+                  aria-label={t("customerPortal.createDialog.groupNameLabel", { index: index + 1 })}
+                  value={group.name}
+                  onChange={(event) => updateGroup(group.id, { name: event.target.value })}
+                  className="font-mono text-xs"
                 />
               </div>
-            ))}
-            <div className="col-span-2 min-w-0 sm:col-span-3 sm:row-start-2">
+              <div className="flex h-9 shrink-0 items-center gap-2">
+                {memberGroups && (
+                  <Label className="text-xs font-normal leading-4 text-muted-foreground">
+                    <RadioGroupItem
+                      value={group.id}
+                      aria-label={t("customerPortal.createDialog.useDefault", { name: group.name || index + 1 })}
+                    />
+                    <span aria-hidden="true">{t("customerPortal.createDialog.default")}</span>
+                  </Label>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={memberGroups && groups.length === 1}
+                  onClick={() => removeGroup(group.id)}
+                  aria-label={t("customerPortal.createDialog.removeGroup", { name: group.name || index + 1 })}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className={`grid grid-cols-2 gap-3 ${memberGroups ? "sm:grid-cols-[1fr_1fr_1.5fr]" : ""}`}>
+              {groupBudgetFields.map(([field, period]) => (
+                <div className="min-w-0 space-y-1.5" key={field}>
+                  <Label
+                    htmlFor={`cc-${period}-${group.id}`}
+                    className="text-xs font-normal leading-4 text-muted-foreground"
+                  >
+                    {t(`customerPortal.createDialog.${period}`)}
+                  </Label>
+                  <BudgetInput
+                    id={`cc-${period}-${group.id}`}
+                    label={t(`customerPortal.createDialog.${period}Label`, { index: index + 1 })}
+                    value={group[field]}
+                    onChange={(value) => updateGroup(group.id, { [field]: value })}
+                  />
+                </div>
+              ))}
+              {memberGroups && (
+                <div className="col-span-2 min-w-0 space-y-1.5 sm:col-span-1">
+                  <Label htmlFor={`cc-cap-${group.id}`} className="text-xs font-normal leading-4 text-muted-foreground">
+                    {t("customerPortal.budgetGroups.atCap")}
+                  </Label>
+                  <Select
+                    value={group.capPolicy}
+                    disabled={disabled}
+                    onValueChange={(value) => {
+                      if (value === "pause_until_reset" || value === "pause_allow_increase") {
+                        updateGroup(group.id, { capPolicy: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      id={`cc-cap-${group.id}`}
+                      aria-label={t("customerPortal.budgetGroups.atCapLabel", { index: index + 1 })}
+                      className="w-full min-w-0 text-xs"
+                    >
+                      <SelectValue>
+                        {t(
+                          group.capPolicy === "pause_allow_increase"
+                            ? "customerPortal.budgetGroups.pauseAllowIncrease"
+                            : "customerPortal.budgetGroups.pauseUntilReset",
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pause_until_reset">
+                        {t("customerPortal.budgetGroups.pauseUntilReset")}
+                      </SelectItem>
+                      <SelectItem value="pause_allow_increase">
+                        {t("customerPortal.budgetGroups.pauseAllowIncrease")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            <div className="border-t pt-3">
               <CustomerRateLimitFields
                 id={`cc-rates-${group.id}`}
                 label={t("customerPortal.rateLimits.group", { index: index + 1 })}
@@ -148,63 +208,9 @@ export default function CustomerBudgetGroupsEditor({
                 rpm={group.rpm}
                 onChange={(field, value) => updateGroup(group.id, { [field]: value })}
                 showHint={false}
+                compact
               />
             </div>
-            <div hidden={!memberGroups} className="col-span-2 min-w-0 space-y-1.5 sm:col-span-3 sm:row-start-3">
-              <Label htmlFor={`cc-cap-${group.id}`}>{t("customerPortal.budgetGroups.atCap")}</Label>
-              <Select
-                value={group.capPolicy}
-                disabled={disabled}
-                onValueChange={(value) => {
-                  if (value === "pause_until_reset" || value === "pause_allow_increase") {
-                    updateGroup(group.id, { capPolicy: value });
-                  }
-                }}
-              >
-                <SelectTrigger
-                  id={`cc-cap-${group.id}`}
-                  aria-label={t("customerPortal.budgetGroups.atCapLabel", { index: index + 1 })}
-                  className="w-full min-w-0 text-xs"
-                >
-                  <SelectValue>
-                    {t(
-                      group.capPolicy === "pause_allow_increase"
-                        ? "customerPortal.budgetGroups.pauseAllowIncrease"
-                        : "customerPortal.budgetGroups.pauseUntilReset",
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pause_until_reset">{t("customerPortal.budgetGroups.pauseUntilReset")}</SelectItem>
-                  <SelectItem value="pause_allow_increase">
-                    {t("customerPortal.budgetGroups.pauseAllowIncrease")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Label
-              hidden={!memberGroups}
-              className={memberGroups ? "flex gap-2 sm:col-start-4 sm:row-start-1 sm:justify-center" : "hidden"}
-            >
-              <RadioGroupItem
-                value={group.id}
-                aria-label={t("customerPortal.createDialog.useDefault", { name: group.name || index + 1 })}
-              />
-              <span className="text-xs sm:sr-only" aria-hidden="true">
-                {t("customerPortal.createDialog.default")}
-              </span>
-            </Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="justify-self-end sm:col-start-[-2] sm:row-start-1"
-              disabled={memberGroups && groups.length === 1}
-              onClick={() => removeGroup(group.id)}
-              aria-label={t("customerPortal.createDialog.removeGroup", { name: group.name || index + 1 })}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
           </div>
         ))}
       </RadioGroup>
