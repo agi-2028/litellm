@@ -21110,7 +21110,6 @@
       "create": "Create organization",
       "searchPlaceholder": "Search by name or ID",
       "overallUsage": "Overall customer usage",
-      "newestFirst": "Newest first",
       "columns": {
         "customer": "$t(customerPortal.entities.organization)",
         "overallSpendShare": "Overall spend share",
