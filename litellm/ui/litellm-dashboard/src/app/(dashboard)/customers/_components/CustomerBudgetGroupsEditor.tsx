@@ -3,43 +3,13 @@ import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { defaultCustomerCapPolicy, type CustomerBudgetGroupFields } from "./customerOrganizationForm";
 import { CustomerRateLimitFields } from "./CustomerRateLimits";
-
-export function BudgetInput({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <InputGroup>
-      <InputGroupAddon>
-        <InputGroupText>$</InputGroupText>
-      </InputGroupAddon>
-      <InputGroupInput
-        id={id}
-        aria-label={label}
-        type="number"
-        min={0}
-        step="any"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={t("customerPortal.createDialog.noLimit")}
-      />
-    </InputGroup>
-  );
-}
+import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
+import CustomerBudgetGroupsTable from "./CustomerBudgetGroupsTable";
 
 const groupBudgetFields = [
   ["monthlyBudget", "monthly"],
@@ -53,6 +23,7 @@ export default function CustomerBudgetGroupsEditor({
   disabled = false,
   showHeading = true,
   memberGroups = true,
+  layout = "cards",
 }: {
   groups: CustomerBudgetGroupFields[];
   defaultGroupId: string;
@@ -60,6 +31,7 @@ export default function CustomerBudgetGroupsEditor({
   disabled?: boolean;
   showHeading?: boolean;
   memberGroups?: boolean;
+  layout?: "cards" | "table";
 }) {
   const { t } = useTranslation();
   const updateGroup = (id: string, patch: Partial<Omit<CustomerBudgetGroupFields, "id">>) =>
@@ -83,6 +55,19 @@ export default function CustomerBudgetGroupsEditor({
     };
     onChange([...groups, group], memberGroups && !groups.length ? group.id : defaultGroupId);
   };
+  if (layout === "table" && memberGroups) {
+    return (
+      <CustomerBudgetGroupsTable
+        groups={groups}
+        defaultGroupId={defaultGroupId}
+        disabled={disabled}
+        onUpdate={updateGroup}
+        onRemove={removeGroup}
+        onAdd={addGroup}
+        onDefaultChange={(id) => onChange(groups, id)}
+      />
+    );
+  }
   return (
     <section
       className={showHeading ? "space-y-3 border-t pt-5" : "space-y-3"}
@@ -153,7 +138,7 @@ export default function CustomerBudgetGroupsEditor({
                   >
                     {t(`customerPortal.createDialog.${period}`)}
                   </Label>
-                  <BudgetInput
+                  <CustomerBudgetAmountInput
                     id={`cc-${period}-${group.id}`}
                     label={t(`customerPortal.createDialog.${period}Label`, { index: index + 1 })}
                     value={group[field]}

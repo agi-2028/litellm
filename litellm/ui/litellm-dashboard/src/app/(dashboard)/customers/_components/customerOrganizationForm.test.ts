@@ -3,6 +3,7 @@ import {
   buildCustomerOrganizationBody,
   defaultCustomerCapPolicy,
   initialCustomerOrganizationFields,
+  type CustomerOrganizationFields,
 } from "./customerOrganizationForm";
 
 const fields = () => ({
@@ -15,7 +16,7 @@ describe("buildCustomerOrganizationBody", () => {
   it("creates the organization, overall calendar budget, and independent member caps together", () => {
     const input = {
       ...fields(),
-      monthlyBudget: "1000.25",
+      budgetAmount: "1000.25",
       tpm: "3000",
       rpm: "25",
       groups: [
@@ -62,10 +63,56 @@ describe("buildCustomerOrganizationBody", () => {
     expect(result.body.default_budget_template).toBe("default_user");
   });
 
+  it("uses the profile without sending or validating inactive custom limits", () => {
+    const input = {
+      ...fields(),
+      budgetMode: "profile",
+      budgetId: "saved-profile",
+      budgetAmount: "-1",
+      tpm: "invalid",
+      rpm: "1.5",
+    } satisfies CustomerOrganizationFields;
+    const result = buildCustomerOrganizationBody(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body.budget_id).toBe("saved-profile");
+    expect(result.body).not.toHaveProperty("budget");
+  });
+
+  it("requires a profile selection only in profile mode", () => {
+    expect(buildCustomerOrganizationBody({ ...fields(), budgetMode: "profile" })).toEqual({
+      ok: false,
+      error: "profileRequired",
+    });
+    expect(buildCustomerOrganizationBody(fields()).ok).toBe(true);
+  });
+
+  it("uses the custom annual budget and zero rates without sending the inactive profile", () => {
+    const input = {
+      ...fields(),
+      budgetId: "saved-profile",
+      budgetDuration: "12mo",
+      budgetAmount: "1000",
+      tpm: "0",
+      rpm: "0",
+    } satisfies CustomerOrganizationFields;
+    const result = buildCustomerOrganizationBody(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const expectedBudget = {
+      max_budget: 1000,
+      budget_duration: "12mo",
+      tpm_limit: 0,
+      rpm_limit: 0,
+    };
+    expect(result.body.budget).toEqual(expectedBudget);
+    expect(result.body).not.toHaveProperty("budget_id");
+  });
+
   it("keeps zero caps and permits either calendar limit to be omitted", () => {
     const input = {
       ...fields(),
-      monthlyBudget: "0",
+      budgetAmount: "0",
       groups: [
         {
           id: "monthly",
@@ -101,7 +148,7 @@ describe("buildCustomerOrganizationBody", () => {
 
   it.each(["-1", "Infinity", "NaN", "invalid"])("rejects invalid amounts %s at either level", (value) => {
     const input = fields();
-    expect(buildCustomerOrganizationBody({ ...input, monthlyBudget: value })).toEqual({
+    expect(buildCustomerOrganizationBody({ ...input, budgetAmount: value })).toEqual({
       ok: false,
       error: "invalidBudget",
     });

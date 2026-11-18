@@ -94,7 +94,7 @@ describe("CustomerBudgetGroups", () => {
     });
     renderWithProviders(<CustomerSettings />);
     await user.click(await screen.findByRole("button", { name: "Add budget group" }));
-    fireEvent.change(screen.getByLabelText("Group 1 name"), { target: { value: "Starter" } });
+    fireEvent.change(screen.getByLabelText("Group name 1"), { target: { value: "Starter" } });
     fireEvent.change(screen.getByLabelText("Group 1 monthly budget (USD)"), { target: { value: "0" } });
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
@@ -126,7 +126,7 @@ describe("CustomerBudgetGroups", () => {
     await user.click(screen.getByRole("combobox", { name: "Group 1 at the cap" }));
     await user.click(screen.getByRole("option", { name: "Pause, they can request more" }));
     await user.click(screen.getByRole("button", { name: "Add budget group" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Group 3 name" }), { target: { value: "New" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Group name 3" }), { target: { value: "New" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Group 3 monthly budget (USD)" }), {
       target: { value: "30" },
     });
@@ -194,7 +194,7 @@ describe("CustomerBudgetGroups", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Add budget group" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Group 1 name" }), { target: { value: "First" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Group name 1" }), { target: { value: "First" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Group 1 monthly budget (USD)" }), {
       target: { value: "10" },
     });
