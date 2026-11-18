@@ -19,6 +19,9 @@ from litellm.proxy.management_helpers.customer_hierarchy import (
     organization_budget_group_ids,
     related_budget,
 )
+from litellm.repositories.app_customer_member_repository import AppCustomerMemberRepository
+from litellm.repositories.app_customer_organization_repository import AppCustomerOrganizationRepository
+from litellm.repositories.app_repository import AppRepository
 from litellm.repositories.chunked_in import find_many_in
 from litellm.repositories.prisma_protocols import TableActions
 from litellm.repositories.table_repositories import PrismaTableRepository
@@ -75,18 +78,6 @@ class _ResourceRecord(BaseModel):
 _DEFINITION_PARAM: Final = "customer_app_definition"
 _PARENT_ORG_ID: Final = TypeAdapter(str)
 AppEntity: Final = TypeVar("AppEntity", App, AppOrganization, AppMember)
-
-
-class AppRepository(PrismaTableRepository[PrismaRecord]):
-    table_name = "litellm_apptable"
-
-
-class AppCustomerOrganizationRepository(PrismaTableRepository[PrismaRecord]):
-    table_name = "litellm_appcustomerorgtable"
-
-
-class AppCustomerMemberRepository(PrismaTableRepository[PrismaRecord]):
-    table_name = "litellm_appcustomermembertable"
 
 
 class _ConfigRepository(PrismaTableRepository[PrismaRecord]):
