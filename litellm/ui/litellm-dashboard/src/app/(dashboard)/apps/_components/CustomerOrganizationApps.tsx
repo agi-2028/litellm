@@ -33,9 +33,7 @@ import {
   hasLegacyCustomerBudget,
 } from "../../customers/_components/customerBudgetForm";
 import { useAppBudgetGroups } from "./useAppBudgetGroups";
-import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
-import AppBudgetLimits from "./AppBudgetLimits";
-import { TableCell, TableRow } from "@/components/ui/table";
+import { AppBudgetRow, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 import { calendarDate, customerPresetRange } from "../../customers/_components/customerUsageRange";
 
 export default function CustomerOrganizationApps({
@@ -261,46 +259,22 @@ function OrganizationAppsTable({
         const profileId = appOrganizationPresetId(row, app);
         const profileName = groups.find((group) => group.budget_id === profileId)?.name;
         let sourceLabel = t("apps.appDefault");
-        if (row.budget || hasLegacyCustomerBudget(row)) sourceLabel = t("customerPortal.organizationGroups.customBadge");
+        if (row.budget || hasLegacyCustomerBudget(row))
+          sourceLabel = t("customerPortal.organizationGroups.customBadge");
         else if (row.budget_id || row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
         const inheritedProfile = !row.budget_id && !row.tier_budget_id && !hasLegacyCustomerBudget(row);
         if (inheritedProfile && profileName) sourceLabel = `${profileName} · ${sourceLabel}`;
-        const resource: AppResource = {
-          resource_type: app.resource_type,
-          resource_id: app.resource_id,
-          app_id: app.app_id,
-          alias: app.alias,
-        };
         return (
-          <TableRow key={app.app_id} className="border-b">
-            <AppBudgetIdentity app={app} row={row} onAppSelect={onAppSelect} />
-            <TableCell className="px-4 py-3 text-muted-foreground">
-              <span className="block max-w-48 truncate" title={sourceLabel}>
-                {sourceLabel}
-              </span>
-            </TableCell>
-            {usageLayout ? (
-              <AppBudgetSpendCells appId={app.app_id} alias={app.alias} row={row} context={usageContext} />
-            ) : (
-              <>
-                <TableCell className="px-4 py-3">
-                  <AppBudgetLimits budget={row.effective_budget} usage={row.budget_usage} cumulativeSpend={row.spend} />
-                </TableCell>
-                <AppBudgetSpendCells appId={app.app_id} alias={app.alias} row={row} context={usageContext} compact />
-              </>
-            )}
-            <TableCell className="px-4 py-3 text-right">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(resource)}
-                aria-label={t("apps.editBudgetFor", { alias: app.alias })}
-              >
-                {t("apps.edit")}
-              </Button>
-            </TableCell>
-          </TableRow>
+          <AppBudgetRow
+            key={app.app_id}
+            scope="organization"
+            app={app}
+            row={row}
+            sourceLabel={sourceLabel}
+            metrics={{ layout: usageLayout ? "full" : "compact", context: usageContext }}
+            onAppSelect={onAppSelect}
+            onEdit={() => onEdit(app)}
+          />
         );
       })}
     </AppBudgetTable>

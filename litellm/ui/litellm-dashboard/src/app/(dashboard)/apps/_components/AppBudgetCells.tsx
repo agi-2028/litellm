@@ -21,6 +21,7 @@ import {
 import CustomerTokenTotal from "../../customers/_components/CustomerTokenTotal";
 import { appBudgetWindows, appUsageEntity } from "./appBudgetPresentation";
 import type { App, AppMember, AppOrganization } from "./appForms";
+import AppBudgetLimits from "./AppBudgetLimits";
 
 export interface AppUsageContext {
   scope: CustomerUsageScope;
@@ -29,20 +30,90 @@ export interface AppUsageContext {
   organizationSpend: number | null;
 }
 
-export default function AppBudgetSpendCells({
-  appId,
-  alias,
+export function AppBudgetRow({
+  scope,
+  app,
+  row,
+  sourceLabel,
+  metrics,
+  onAppSelect,
+  onEdit,
+}: {
+  scope: "organization" | "member";
+  app: App;
+  row?: AppOrganization | AppMember;
+  sourceLabel: string;
+  metrics?: { layout: "full" | "compact"; context: AppUsageContext };
+  onAppSelect?: (appId: string) => void;
+  onEdit: () => void;
+}) {
+  const { t } = useTranslation();
+  const organization = scope === "organization";
+  const usage = metrics?.layout === "full";
+  const showSourceColumn = organization || usage;
+  const { effective_budget: budget, budget_usage: budgetUsage, spend } = row ?? {};
+  const { primary } = appBudgetWindows(budget, budgetUsage);
+  const period = customerBudgetPeriod(primary?.budget_duration ?? null);
+  const periodLabel = period === "other" ? primary?.budget_duration : t(`apps.${period}`);
+  return (
+    <TableRow>
+      <TableCell className="px-4 py-3">
+        {onAppSelect ? (
+          <button
+            type="button"
+            onClick={() => onAppSelect(app.app_id)}
+            className="block text-left font-medium hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {app.alias}
+          </button>
+        ) : (
+          <span className="block font-medium">{app.alias}</span>
+        )}
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {[showSourceColumn ? undefined : sourceLabel, periodLabel].filter(Boolean).join(" · ")}
+        </span>
+      </TableCell>
+      {showSourceColumn && (
+        <TableCell className="px-4 py-3 text-muted-foreground">
+          <span className="block max-w-48 truncate" title={sourceLabel}>
+            {sourceLabel}
+          </span>
+        </TableCell>
+      )}
+      {(!usage || !row) && (
+        <TableCell className={organization ? "px-4 py-3" : "py-4"}>
+          <AppBudgetLimits budget={budget} usage={budgetUsage} cumulativeSpend={spend} />
+        </TableCell>
+      )}
+      {metrics && row && <AppBudgetSpendCells app={app} row={row} context={metrics.context} compact={!usage} />}
+      <TableCell className={showSourceColumn ? "px-4 py-3 text-right" : undefined}>
+        <Button
+          type="button"
+          variant="ghost"
+          size={organization ? "sm" : "xs"}
+          aria-label={t(organization ? "apps.editBudgetFor" : "apps.editMemberBudget", { alias: app.alias })}
+          onClick={onEdit}
+        >
+          {t("apps.edit")}
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function AppBudgetSpendCells({
+  app,
   row,
   context,
   compact = false,
 }: {
-  appId: string;
-  alias: string;
+  app: App;
   row: AppOrganization | AppMember;
   context: AppUsageContext;
   compact?: boolean;
 }) {
   const { accessToken } = useAuthorized();
+  const { app_id: appId, alias } = app;
   const month = customerPresetRange("month");
   const year = compact ? month : customerPresetRange("YTD");
   const periods = {
@@ -105,41 +176,6 @@ function AppUsageRetry({ error, onRetry }: { error: unknown; onRetry: () => void
     <Button variant="ghost" size="xs" title={extractProxyErrorMessage(error)} onClick={onRetry}>
       {t("customerPortal.analytics.unknownSpend")} · {t("apps.retry")}
     </Button>
-  );
-}
-
-export function AppBudgetIdentity({
-  app,
-  row,
-  sourceLabel,
-  onAppSelect,
-}: {
-  app: App;
-  row: AppOrganization | AppMember | undefined;
-  sourceLabel?: string;
-  onAppSelect?: (appId: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { primary } = appBudgetWindows(row?.effective_budget, row?.budget_usage);
-  const period = customerBudgetPeriod(primary?.budget_duration ?? null);
-  const periodLabel = period === "other" ? primary?.budget_duration : t(`apps.${period}`);
-  return (
-    <TableCell className="px-4 py-3">
-      {onAppSelect ? (
-        <button
-          type="button"
-          onClick={() => onAppSelect(app.app_id)}
-          className="block text-left font-medium hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          {app.alias}
-        </button>
-      ) : (
-        <span className="block font-medium">{app.alias}</span>
-      )}
-      <span className="mt-1 block text-xs text-muted-foreground">
-        {[sourceLabel, periodLabel].filter(Boolean).join(" · ")}
-      </span>
-    </TableCell>
   );
 }
 

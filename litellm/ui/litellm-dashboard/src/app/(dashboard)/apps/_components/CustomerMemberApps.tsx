@@ -21,8 +21,7 @@ import {
   hasLegacyCustomerBudget,
 } from "../../customers/_components/customerBudgetForm";
 import { ErrorState } from "@/components/shared/ErrorState";
-import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
-import AppBudgetLimits from "./AppBudgetLimits";
+import { AppBudgetRow, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 
 const BUDGET_SOURCES = {
   member_budget: "apps.customBudget",
@@ -94,62 +93,36 @@ function MemberAppRow({
       return response.data;
     },
   });
-  if (member.isPending)
+  if (member.isPending || member.isError)
     return (
       <TableRow>
         <TableCell className="py-4 font-medium">{app.alias}</TableCell>
         <TableCell colSpan={usageContext ? 8 : 2}>
-          <p role="status">{t("apps.loading")}</p>
-        </TableCell>
-      </TableRow>
-    );
-  if (member.isError)
-    return (
-      <TableRow>
-        <TableCell className="py-4 font-medium">{app.alias}</TableCell>
-        <TableCell colSpan={usageContext ? 8 : 2}>
-          <p role="alert">{extractProxyErrorMessage(member.error)}</p>
-          <Button variant="ghost" size="xs" onClick={() => void member.refetch()}>
-            {t("apps.retry")}
-          </Button>
+          {member.isPending ? (
+            <p role="status">{t("apps.loading")}</p>
+          ) : (
+            <>
+              <p role="alert">{extractProxyErrorMessage(member.error)}</p>
+              <Button variant="ghost" size="xs" onClick={() => void member.refetch()}>
+                {t("apps.retry")}
+              </Button>
+            </>
+          )}
         </TableCell>
       </TableRow>
     );
   const sourceLabel = t(BUDGET_SOURCES[member.data?.budget_source ?? "none"]);
   return (
     <>
-      <TableRow>
-        <AppBudgetIdentity
-          app={app}
-          row={member.data}
-          sourceLabel={usageContext ? undefined : sourceLabel}
-          onAppSelect={onAppSelect}
-        />
-        {usageContext && member.data ? (
-          <>
-            <TableCell className="px-4 text-muted-foreground">{sourceLabel}</TableCell>
-            <AppBudgetSpendCells appId={app.app_id} alias={app.alias} row={member.data} context={usageContext} />
-          </>
-        ) : (
-          <TableCell className="py-4">
-            <AppBudgetLimits
-              budget={member.data?.effective_budget}
-              usage={member.data?.budget_usage}
-              cumulativeSpend={member.data?.spend}
-            />
-          </TableCell>
-        )}
-        <TableCell className={usageContext ? "px-4 text-right" : undefined}>
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label={t("apps.editMemberBudget", { alias: app.alias })}
-            onClick={() => setEditing(!editing)}
-          >
-            {t("apps.edit")}
-          </Button>
-        </TableCell>
-      </TableRow>
+      <AppBudgetRow
+        scope="member"
+        app={app}
+        row={member.data}
+        sourceLabel={sourceLabel}
+        metrics={usageContext ? { layout: "full", context: usageContext } : undefined}
+        onAppSelect={onAppSelect}
+        onEdit={() => setEditing(!editing)}
+      />
       {editing && member.data && (
         <MemberBudgetLoader
           organizationId={organizationId}
