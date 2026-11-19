@@ -103,6 +103,7 @@ export function CustomerSpendCells({
   organizationSpend,
   usageLayout = false,
   tokenContent,
+  shareContent,
 }: {
   entity: CustomerUsageEntity;
   monthlySpend: number | null;
@@ -111,6 +112,7 @@ export function CustomerSpendCells({
   organizationSpend: number | null;
   usageLayout?: boolean;
   tokenContent?: ReactNode;
+  shareContent?: ReactNode;
 }) {
   const { t } = useTranslation();
   const budgets = customerBudgetUsage(member);
@@ -162,6 +164,7 @@ export function CustomerSpendCells({
         monthlySpend={monthlySpend}
         organizationSpend={organizationSpend}
         usageLayout={usageLayout}
+        shareContent={shareContent}
         tokenContent={tokenContent ?? (tokens === null ? "—" : formatCompact(tokens))}
       />
       <TableCell className={cn("text-right", usageLayout && "px-4")}>
@@ -196,15 +199,19 @@ export function CustomerSpendMetricsCells({
   organizationSpend,
   usageLayout = false,
   tokenContent,
+  shareContent,
 }: {
   monthlySpend: number | null;
   organizationSpend: number | null;
   usageLayout?: boolean;
   tokenContent: ReactNode;
+  shareContent?: ReactNode;
 }) {
   return (
     <>
-      <CustomerSpendShare monthlySpend={monthlySpend} organizationSpend={organizationSpend} usageLayout={usageLayout} />
+      <CustomerSpendShare monthlySpend={monthlySpend} organizationSpend={organizationSpend} usageLayout={usageLayout}>
+        {shareContent}
+      </CustomerSpendShare>
       <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>{tokenContent}</TableCell>
     </>
   );
@@ -214,10 +221,12 @@ function CustomerSpendShare({
   monthlySpend,
   organizationSpend,
   usageLayout,
+  children,
 }: {
   monthlySpend: number | null;
   organizationSpend: number | null;
   usageLayout: boolean;
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const spendShare = organizationSpend && monthlySpend !== null ? (monthlySpend / organizationSpend) * 100 : 0;
@@ -230,31 +239,32 @@ function CustomerSpendShare({
   });
   return (
     <TableCell className={usageLayout ? "px-4" : undefined}>
-      {shareAvailable ? (
-        <div className={usageLayout ? "flex items-center gap-3" : undefined}>
-          <div
-            role="meter"
-            aria-label={t("customerPortal.analytics.customerSpendShare")}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={sharePercentage}
-            aria-valuetext={shareLabel}
-            title={shareLabel}
-            className={cn(
-              "ml-auto h-2.5 w-24 overflow-hidden rounded-full bg-muted",
-              usageLayout && "ml-0 h-2 w-14 shrink-0",
-            )}
-          >
+      {children ??
+        (shareAvailable ? (
+          <div className={usageLayout ? "flex items-center gap-3" : undefined}>
             <div
-              className="h-full rounded-full bg-primary"
-              style={{ width: `${sharePercentage}%`, opacity: usageLayout ? 0.6 : 0.3 + sharePercentage * 0.007 }}
-            />
+              role="meter"
+              aria-label={t("customerPortal.analytics.customerSpendShare")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={sharePercentage}
+              aria-valuetext={shareLabel}
+              title={shareLabel}
+              className={cn(
+                "ml-auto h-2.5 w-24 overflow-hidden rounded-full bg-muted",
+                usageLayout && "ml-0 h-2 w-14 shrink-0",
+              )}
+            >
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${sharePercentage}%`, opacity: usageLayout ? 0.6 : 0.3 + sharePercentage * 0.007 }}
+              />
+            </div>
+            {usageLayout && <span className="text-xs tabular-nums text-muted-foreground">{shareLabel}</span>}
           </div>
-          {usageLayout && <span className="text-xs tabular-nums text-muted-foreground">{shareLabel}</span>}
-        </div>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      )}
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ))}
     </TableCell>
   );
 }

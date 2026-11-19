@@ -103,10 +103,13 @@ describe("customer app budgets", () => {
     assigned = true;
     const serve = fetchMock.getMockImplementation()!;
     const usageRequests: URL[] = [];
+    let totalAvailable = false;
     fetchMock.mockImplementation(async (input, init) => {
       const url = new URL(new Request(input, init).url);
       if (!url.pathname.includes("/daily/activity")) return serve(input, init);
       usageRequests.push(url);
+      if (url.pathname.endsWith("/aggregated") && !totalAvailable)
+        return json({ detail: "Organization total unavailable" }, 503);
       const appScoped = url.searchParams.get("app_id") === app.app_id;
       const metrics = {
         spend: appScoped ? 20 : 100,
@@ -119,7 +122,7 @@ describe("customer app budgets", () => {
         results: [
           { date: url.searchParams.get("start_date"), metrics, breakdown: { entities: { "org-1": { metrics } } } },
         ],
-        metadata: { has_more: false, total_pages: 1 },
+        metadata: { has_more: false, total_pages: 1, total_spend: metrics.spend },
       });
     });
     const user = userEvent.setup();
@@ -128,9 +131,18 @@ describe("customer app budgets", () => {
     const tokens = await table.findByRole("button", { name: "1,500 total tokens. View breakdown" });
     expect(table.getByRole("columnheader", { name: "Budget & usage" })).toBeInTheDocument();
     expect(table.getByRole("columnheader", { name: "Tokens" })).toBeInTheDocument();
+    const retry = await table.findByRole("button", { name: /Retry/ });
+    expect(retry).toHaveAttribute("title", "Organization total unavailable");
+    expect(tokens).toHaveTextContent("1.5K");
+    totalAvailable = true;
+    await user.click(retry);
     expect(await table.findByText("20%")).toBeInTheDocument();
     expect(table.getByRole("meter", { name: "Share of customer spend" })).toHaveAttribute("aria-valuenow", "20");
-    expect(usageRequests.every((url) => url.searchParams.get("customer_org_ids") === "org-1")).toBe(true);
+    expect(
+      usageRequests.every(
+        (url) => (url.searchParams.get("customer_org_ids") ?? url.searchParams.get("customer_org_id")) === "org-1",
+      ),
+    ).toBe(true);
     expect(usageRequests.filter((url) => url.searchParams.get("app_id") === app.app_id)).toHaveLength(1);
     const monthlyTotal = usageRequests.find((url) => url.pathname.endsWith("/aggregated"));
     expect(monthlyTotal?.searchParams.has("app_id")).toBe(false);

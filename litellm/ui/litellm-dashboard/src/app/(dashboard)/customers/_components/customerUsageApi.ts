@@ -158,7 +158,7 @@ const activityPages = async (
   throw new Error(i18n.t("customerPortal.analytics.incompletePages"));
 };
 
-const organizationActivityTotals = async (
+export const organizationActivityTotals = async (
   organizationId: string,
   request: Pick<CustomerUsageRequest, "accessToken" | "startDate" | "endDate" | "signal" | "appId">,
 ) => {

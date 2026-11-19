@@ -6,7 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
 import { Button } from "@/components/ui/button";
 import { extractProxyErrorMessage } from "@/lib/http/client";
-import { customerAppSpendCall, type CustomerUsageScope } from "../../customers/_components/customerUsageApi";
+import {
+  customerAppSpendCall,
+  organizationActivityTotals,
+  type CustomerUsageScope,
+} from "../../customers/_components/customerUsageApi";
 import { calendarDate, customerPresetRange } from "../../customers/_components/customerUsageRange";
 import {
   CustomerSpendCells,
@@ -15,7 +19,6 @@ import {
   CustomerSpendMetricsHeaders,
 } from "../../customers/_components/CustomerSpendCells";
 import CustomerTokenTotal from "../../customers/_components/CustomerTokenTotal";
-import { customerOrganizationsUsageCall } from "../../customers/_components/customerOrganizations";
 import { appBudgetWindows, appUsageEntity } from "./appBudgetPresentation";
 import type { App, AppMember, AppOrganization } from "./appForms";
 
@@ -39,7 +42,6 @@ export default function AppBudgetSpendCells({
   context: AppUsageContext;
   compact?: boolean;
 }) {
-  const { t } = useTranslation();
   const { accessToken } = useAuthorized();
   const month = customerPresetRange("month");
   const year = compact ? month : customerPresetRange("YTD");
@@ -62,13 +64,12 @@ export default function AppBudgetSpendCells({
     queryKey: ["customer-app-organization-spend", context.scope.org, periods.monthStartDate, periods.monthEndDate],
     queryFn: ({ signal }: { signal: AbortSignal }) => {
       const request = {
-        ids: [context.scope.org],
         startDate: periods.monthStartDate,
         endDate: periods.monthEndDate,
         accessToken: accessToken!,
         signal,
       };
-      return customerOrganizationsUsageCall(request);
+      return organizationActivityTotals(context.scope.org, request);
     },
     enabled: Boolean(accessToken) && context.organizationSpend === null,
   };
@@ -82,21 +83,28 @@ export default function AppBudgetSpendCells({
       tokens={activity.data?.tokenDetails.tokens ?? null}
       tokenContent={
         activity.isError ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            title={extractProxyErrorMessage(activity.error)}
-            onClick={() => void activity.refetch()}
-          >
-            {t("customerPortal.analytics.unknownSpend")} · {t("apps.retry")}
-          </Button>
+          <AppUsageRetry error={activity.error} onRetry={() => void activity.refetch()} />
         ) : (
           <CustomerTokenTotal usage={activity.data?.tokenDetails ?? null} />
         )
       }
+      shareContent={
+        context.organizationSpend === null && organization.isError ? (
+          <AppUsageRetry error={organization.error} onRetry={() => void organization.refetch()} />
+        ) : undefined
+      }
       organizationSpend={context.organizationSpend ?? organization.data?.metadata.total_spend ?? null}
       usageLayout
     />
+  );
+}
+
+function AppUsageRetry({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Button variant="ghost" size="xs" title={extractProxyErrorMessage(error)} onClick={onRetry}>
+      {t("customerPortal.analytics.unknownSpend")} · {t("apps.retry")}
+    </Button>
   );
 }
 

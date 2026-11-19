@@ -116,7 +116,7 @@ export default function CustomerOrganizationApps({
         description={t("apps.organizationHint")}
         className="sm:max-w-2xl"
       >
-        <div className={`grid shrink-0 gap-4 px-6 pt-6 sm:grid-cols-2 ${editing ? "" : "pb-6"}`}>
+        <div className="grid shrink-0 gap-4 px-6 pt-6 last:pb-6 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="app-budget-customer" className="text-sm text-muted-foreground">
               {t("apps.customer")}
