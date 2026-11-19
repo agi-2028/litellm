@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CustomerHierarchyUsage } from "./customerUsageApi";
 import { CustomerSpendCells, CustomerSpendHeaders, CustomerSpendIdentity } from "./CustomerSpendCells";
-import { compareCustomerBudgets, customerBudgetLimit, customerBudgetSortParser } from "./customerBudgetUsage";
-import { CustomerBudgetLimitCell, CustomerBudgetSortHeader } from "./CustomerBudgetColumn";
+import { compareCustomerBudgets, customerBudgetSortParser } from "./customerBudgetUsage";
+import { CustomerBudgetSortHeader } from "./CustomerBudgetColumn";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25];
 const MEMBER_TABLE_PARSERS = {
@@ -70,16 +70,17 @@ export default function CustomerMemberSpend({
         <TableHeader>
           <TableRow>
             <TableHead className="pl-0">{t("customerPortal.analytics.member")}</TableHead>
-            <CustomerSpendHeaders />
-            <CustomerBudgetSortHeader
-              sort={table.budgetSort}
-              onSort={() =>
-                void setTable(
-                  { budgetSort: table.budgetSort === "budget_asc" ? "budget_desc" : "budget_asc", memberPage: null },
-                  { history: "push" },
-                )
-              }
-            />
+            <CustomerSpendHeaders>
+              <CustomerBudgetSortHeader
+                sort={table.budgetSort}
+                onSort={() =>
+                  void setTable(
+                    { budgetSort: table.budgetSort === "budget_asc" ? "budget_desc" : "budget_asc", memberPage: null },
+                    { history: "push" },
+                  )
+                }
+              />
+            </CustomerSpendHeaders>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -95,7 +96,6 @@ export default function CustomerMemberSpend({
                 tokens={member.monthlyUsage?.tokens ?? 0}
                 organizationSpend={data.monthlyOrganizationSpend}
               />
-              <CustomerBudgetLimitCell limit={customerBudgetLimit(member)} />
             </TableRow>
           ))}
           {members.length === 0 && (

@@ -206,8 +206,9 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
           <TableRow>
             <TableHead className="pl-0">{t("customerPortal.hierarchy.name")}</TableHead>
             {showTeam && <TableHead>{t("customerPortal.hierarchy.team")}</TableHead>}
-            <CustomerSpendHeaders />
-            <CustomerBudgetSortHeader sort={hierarchy.budgetSort} onSort={hierarchy.toggleBudgetSort} />
+            <CustomerSpendHeaders>
+              <CustomerBudgetSortHeader sort={hierarchy.budgetSort} onSort={hierarchy.toggleBudgetSort} />
+            </CustomerSpendHeaders>
             <TableHead className="pr-0">
               <span className="sr-only">{t("customerPortal.hierarchy.settings")}</span>
             </TableHead>
@@ -240,15 +241,18 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
                   organizationSpend={childUsage.data.organizationSpend}
                 />
               ) : (
-                <TableCell colSpan={5} className="text-center text-xs text-muted-foreground" role="status">
-                  {t(
-                    childUsage.isError || !isCustomerUsageIdentifier(row.id)
-                      ? "customerPortal.analytics.unknownSpend"
-                      : "customerPortal.hierarchy.loading",
-                  )}
-                </TableCell>
+                <>
+                  <TableCell className="text-center text-xs text-muted-foreground" role="status">
+                    {t(
+                      childUsage.isError || !isCustomerUsageIdentifier(row.id)
+                        ? "customerPortal.analytics.unknownSpend"
+                        : "customerPortal.hierarchy.loading",
+                    )}
+                  </TableCell>
+                  <CustomerBudgetLimitCell limit={customerBudgetLimit(row.entity)} rateLimits={row.entity.rateLimits} />
+                  <TableCell colSpan={4} />
+                </>
               )}
-              <CustomerBudgetLimitCell limit={customerBudgetLimit(row.entity)} rateLimits={row.entity.rateLimits} />
               <TableCell className="pr-0 text-right">
                 <div className="flex justify-end gap-2">
                   <a

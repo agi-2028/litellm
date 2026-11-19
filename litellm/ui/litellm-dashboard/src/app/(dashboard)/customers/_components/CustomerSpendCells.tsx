@@ -1,10 +1,17 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { formatCompact, formatUsd } from "@/app/(dashboard)/usage/_components/components/overview/overviewData";
 import { TableCell, TableHead } from "@/components/ui/table";
 import { cn } from "@/lib/cva.config";
 import type { CustomerUsageEntity } from "./customerUsageApi";
 import CustomerBudgetSpend, { CustomerBudgetWindow } from "./CustomerBudgetSpend";
-import { customerBudgetPeriod, customerBudgetStatus, customerBudgetUsage } from "./customerBudgetUsage";
+import {
+  customerBudgetLimit,
+  customerBudgetPeriod,
+  customerBudgetStatus,
+  customerBudgetUsage,
+} from "./customerBudgetUsage";
+import { CustomerBudgetLimitCell } from "./CustomerBudgetColumn";
 
 export function CustomerSpendIdentity({
   entity: member,
@@ -45,11 +52,12 @@ export function CustomerSpendIdentity({
   );
 }
 
-export function CustomerSpendHeaders() {
+export function CustomerSpendHeaders({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   return (
     <>
       <TableHead className="min-w-56">{t("customerPortal.analytics.monthlySpend")}</TableHead>
+      {children}
       <TableHead className="text-right">{t("customerPortal.analytics.yearlySpend")}</TableHead>
       <TableHead className="min-w-36 whitespace-normal text-right">
         {t("customerPortal.analytics.customerSpendShare")}
@@ -115,6 +123,7 @@ export function CustomerSpendCells({
           ))}
         </div>
       </TableCell>
+      <CustomerBudgetLimitCell limit={customerBudgetLimit(member)} rateLimits={member.rateLimits} />
       <TableCell className="text-right tabular-nums">
         <div className="space-y-2">
           {yearlyBudgets.map((budget) => (

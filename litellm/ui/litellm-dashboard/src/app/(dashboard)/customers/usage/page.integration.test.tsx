@@ -586,7 +586,7 @@ describe("CustomerHierarchyUsagePage", () => {
         "aria-valuetext",
         "66.7%",
       );
-      expect(within(row).getAllByRole("cell")[5]).toHaveTextContent(status);
+      expect(within(row).getByRole("cell", { name: status, exact: true })).toBeInTheDocument();
       await user.click(within(row).getByRole("button", { name: "Member One" }));
       expect(await screen.findByRole("heading", { name: "Member One" })).toBeInTheDocument();
       const summary = screen.getByRole("region", { name: "Current budget" });
