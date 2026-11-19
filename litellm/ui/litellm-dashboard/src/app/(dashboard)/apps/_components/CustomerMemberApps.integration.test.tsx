@@ -133,7 +133,7 @@ describe("customer member apps", () => {
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     const request = requests.find((row) => row.method === "PUT");
     expect(new URL(request!.url).pathname).toBe("/management/v1/apps/app-1/customer_members/member-1");
-    expect(await request?.json()).toMatchObject({
+    expect(await request?.json()).toEqual({
       budget: {
         max_budget: 5,
         budget_duration: "1mo",

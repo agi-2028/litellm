@@ -101,6 +101,35 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer app budgets", () => {
+  it("should send only entered first-custom fields when leaving an app organization preset", async () => {
+    bound = true;
+    assigned = true;
+    customAssociation = {
+      ...assignedBudget,
+      budget_id: "standard",
+      budget: null,
+      effective_budget: {
+        ...assignedBudget.effective_budget,
+        tpm_limit: 1700,
+        rpm_limit: 17,
+        allowed_models: ["test-model"],
+      },
+    };
+    const user = userEvent.setup();
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
+    await chooseAppOption(user, screen.getByRole("combobox", { name: "Budget source" }), "Enter custom limits instead");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Additional spend limit (USD)" }), {
+      target: { value: "0" },
+    });
+    await user.click(screen.getByRole("button", { name: "Save app budget" }));
+    await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+    expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
+      budget: { max_budget: 0, budget_duration: null },
+      customer_member_budget: null,
+    });
+  });
+
   it.each(["2000-01-01T00:00:00Z", "2099-01-01T00:00:00Z"])(
     "keeps the preset source for a temporary grant expiring at %s",
     async (expiry) => {

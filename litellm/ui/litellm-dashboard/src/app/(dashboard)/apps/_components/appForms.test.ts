@@ -14,7 +14,31 @@ describe("app budget forms", () => {
   it("saves a rate-only budget and preserves zero limits", () => {
     expect(budgetEditorValue({ ...budgetEditorFields({}), tpm: "50000", rpm: "0" })).toMatchObject({
       ok: true,
-      value: { max_budget: null, budget_limits: null, tpm_limit: 50000, rpm_limit: 0 },
+      value: { tpm_limit: 50000, rpm_limit: 0 },
+    });
+  });
+
+  it("omits blank first-custom fields so the backend can retain inherited restrictions", () => {
+    expect(
+      permanentBudgetEditorValue({ ...compactBudgetEditorFields(), budgetEnabled: true, maxBudget: "0" }, null),
+    ).toEqual({
+      ok: true,
+      value: { max_budget: 0, budget_duration: "1mo" },
+    });
+  });
+
+  it("keeps explicit clears when editing an existing private budget", () => {
+    const original = {
+      max_budget: 20,
+      tpm_limit: 1700,
+      rpm_limit: 17,
+      allowed_models: ["test-model"],
+      budget_limits: [{ budget_duration: "12mo", max_budget: 6000 }],
+    };
+    const fields = { ...compactBudgetEditorFields(original), tpm: "", rpm: "", allowedModels: [], budgetWindows: [] };
+    expect(permanentBudgetEditorValue(fields, original)).toEqual({
+      ok: true,
+      value: { tpm_limit: null, rpm_limit: null, allowed_models: null, budget_limits: null },
     });
   });
 
