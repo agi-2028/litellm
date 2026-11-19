@@ -25,6 +25,7 @@ from litellm.proxy.auth.host.python import AgentLookup, HttpCall, NoRegisteredAg
 from litellm.proxy.common_utils.user_api_key_cache import UserApiKeyCache
 from litellm.proxy.hooks.model_max_budget_limiter import PROXY_VirtualKeyModelMaxBudgetLimiter
 from litellm.proxy.utils import PrismaClient, ProxyLogging
+from litellm.redis.stores.auth_cache import AuthObject
 from litellm.rust_bridge._native import RustAuth, RustAuthSettings, RustIdentity
 from litellm.types.agents import AgentResponse
 from litellm.types.proxy.auth.user_api_key_auth import UserAPIKeyAuth
@@ -103,7 +104,7 @@ async def test_a_role_change_is_stored_and_the_stored_user_is_cached_and_returne
         stale, "proxy_admin"
     )
 
-    cached: Final = await cache.async_get_cache(key="u1", model_type=LiteLLM_UserTable)
+    cached: Final = await cache.async_get_cache(key=AuthObject.user("u1"), model_type=LiteLLM_UserTable)
     assert rust_auth_stores.user.rows["u1"]["user_role"] == "proxy_admin"
     assert (updated.user_role, updated.user_email) == ("proxy_admin", "stored@example.com")
     assert cached == updated
@@ -313,7 +314,7 @@ async def test_a_caller_sharing_a_cancelled_fetch_takes_it_over() -> None:
 async def test_a_user_token_takes_its_role_from_the_user_row_the_core_returns() -> None:
     cache: Final = UserApiKeyCache()
     await cache.async_set_cache(
-        key="user-1",
+        key=AuthObject.user("user-1"),
         value=LiteLLM_UserTable(user_id="user-1", user_role="internal_user_viewer"),
         model_type=LiteLLM_UserTable,
     )
