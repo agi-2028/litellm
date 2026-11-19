@@ -507,12 +507,36 @@ describe("customer hierarchy management", () => {
     const summary = await screen.findByRole("region", { name: "Current budget" });
     expect(within(summary).getByText("Unavailable / $10.00")).toBeInTheDocument();
     expect(within(summary).getByText("Unavailable / $100.00")).toBeInTheDocument();
-    expect(within(summary).getByRole("link", { name: "Edit budget" })).toHaveAttribute(
-      "href",
-      `${uiHref("customers/manage")}?org=org-1&team=team-a&member=member-a&tab=settings`,
-    );
+    expect(within(summary).getByRole("button", { name: "Edit budget" })).toBeEnabled();
     expect(within(summary).queryByText(/No limit/)).not.toBeInTheDocument();
     expect(within(summary).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("shows member budget groups and opens budget editing without leaving the member list", async () => {
+    const groupedMember = { ...member, budget_id: "member-standard" };
+    const groupedOrg = {
+      ...organization,
+      default_budgets: [{ budget_id: "member-standard", name: "Member Standard", max_budget: 10 }],
+    };
+    fetchMock.mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.pathname === "/management/v1/customer_organizations/org-1") return json(groupedOrg);
+      if (url.pathname === "/management/v1/customer_members/member-a") return json(groupedMember);
+      if (url.pathname === "/management/v1/customer_members")
+        return json({ data: [groupedMember], meta: { total_count: 1, page: 1, page_size: 20, total_pages: 1 } });
+      return serve(input);
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<CustomerHierarchyManager />, { searchParams: "?org=org-1&tab=members" });
+    const table = await screen.findByRole("table", { name: "Customer members" });
+    expect(within(table).getByRole("columnheader", { name: "Budget group" })).toBeInTheDocument();
+    expect(within(table).getByRole("cell", { name: "Member Standard", exact: true })).toBeInTheDocument();
+    await user.click(within(table).getByRole("button", { name: "Actions for Member One" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit budget", exact: true }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit member budget", exact: true }));
+    expect(await dialog.findByRole("combobox", { name: "Member limits" })).toHaveTextContent("Member Standard");
+    await user.click(dialog.getByRole("button", { name: "Cancel", exact: true }));
+    expect(screen.getByRole("link", { name: "Customer members", exact: true })).toHaveAttribute("aria-current", "page");
   });
 
   it("should list customer members across an organization and open their customer team context", async () => {

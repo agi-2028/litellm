@@ -116,7 +116,8 @@
     "noInheritedBudget": "No member limit",
     "editMemberBudget": "Edit member budget for {{alias}}",
     "saveMemberBudget": "Save member app budget",
-    "memberOverrideHint": "Disable the override to inherit the customer organization’s per-member default, or the app default if none is set. Other apps keep their own budgets.",
+    "memberOverrideHint": "Choose inherited limits or set custom limits for this member in this app. Other apps keep their own budgets.",
+    "inheritMemberHint": "Use the customer's per-member default, or the app default.",
     "noMemberApps": "No app budgets are configured yet.",
     "resourceTypes": {
       "team": "Teams",
@@ -21285,6 +21286,9 @@
     },
     "budgetEditor": {
       "title": "Edit organization budget",
+      "memberTitle": "Edit member budget",
+      "memberAction": "Edit budget for {{name}}",
+      "group": "Budget group",
       "customPeriod": "Custom period",
       "noReset": "No reset"
     },
@@ -21370,6 +21374,7 @@
       "withinMonthlyBudget": "Within monthly limit",
       "monthlyLimitAmount": "Monthly limit: {{amount}}",
       "yearlyLimitAmount": "Yearly limit: {{amount}}",
+      "limitAmount": "{{amount}} limit",
       "budgetRemaining": "{{amount}} left",
       "budgetOver": "{{amount}} over",
       "calendarMonth": "Current UTC calendar month",

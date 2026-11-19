@@ -12,9 +12,11 @@ function budgetPercentage(spend: number, limit: number | null): number {
 export function CustomerBudgetWindow({
   budget,
   showReset = false,
+  stacked = false,
 }: {
   budget: CustomerBudgetUsage;
   showReset?: boolean;
+  stacked?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const period = customerBudgetPeriod(budget.budget_duration);
@@ -26,7 +28,13 @@ export function CustomerBudgetWindow({
     : null;
   return (
     <div title={[budget.budget_duration, reset].filter(Boolean).join(" · ")}>
-      <CustomerBudgetSpend spend={budget.spend} limit={budget.max_budget} label={label} compact={period === "yearly"} />
+      <CustomerBudgetSpend
+        spend={budget.spend}
+        limit={budget.max_budget}
+        label={label}
+        compact={period === "yearly"}
+        stacked={stacked}
+      />
       {showReset && reset && <p className="mt-1 text-[11px] text-muted-foreground">{reset}</p>}
     </div>
   );
@@ -37,19 +45,25 @@ export default function CustomerBudgetSpend({
   limit,
   label,
   compact = false,
+  stacked = false,
 }: {
   spend: number | null;
   limit: number | null;
   label: string;
   compact?: boolean;
+  stacked?: boolean;
 }) {
   const { t } = useTranslation();
   const spendValue = spend === null ? t("customerPortal.analytics.unknownSpend") : formatUsd(spend);
-  if (limit === null) {
+  if (limit === null || stacked) {
     return (
       <div className="space-y-0.5 whitespace-nowrap tabular-nums">
         <div>{spendValue}</div>
-        <div className="text-xs text-muted-foreground">{t("customerPortal.analytics.noLimit")}</div>
+        <div className="text-xs text-muted-foreground">
+          {limit === null
+            ? t("customerPortal.analytics.noLimit")
+            : t("customerPortal.analytics.limitAmount", { amount: formatUsd(limit) })}
+        </div>
       </div>
     );
   }

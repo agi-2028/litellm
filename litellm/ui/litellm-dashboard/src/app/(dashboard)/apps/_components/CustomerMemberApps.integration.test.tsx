@@ -8,6 +8,7 @@ import {
   act,
   waitFor,
   testQueryClient,
+  chooseSelectOption,
 } from "../../../../../tests/test-utils";
 import CustomerMemberApps from "./CustomerMemberApps";
 import type { App } from "./appForms";
@@ -118,17 +119,27 @@ describe("customer member apps", () => {
     expect(screen.getAllByRole("columnheader")).toHaveLength(3);
     expect(screen.queryByText("$100.00")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit member budget for Assistant" }));
+    expect(screen.getByRole("dialog", { name: "Edit member budget for Assistant" })).toBeInTheDocument();
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Budget source" }),
+      "Enter custom limits instead",
+    );
     act(() => {
-      fireEvent.click(screen.getByRole("checkbox", { name: "Set custom limits" }));
-    });
-    act(() => {
-      fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "5" } });
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "5" } });
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Yearly budget" }), { target: { value: "50" } });
     });
     await user.click(screen.getByRole("button", { name: "Save member app budget" }));
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     const request = requests.find((row) => row.method === "PUT");
     expect(new URL(request!.url).pathname).toBe("/management/v1/apps/app-1/customer_members/member-1");
-    expect(await request?.json()).toMatchObject({ budget_override: { max_budget: 5 } });
+    expect(await request?.json()).toMatchObject({
+      budget_override: {
+        max_budget: 5,
+        budget_duration: "1mo",
+        budget_limits: [{ max_budget: 50, budget_duration: "12mo" }],
+      },
+    });
   });
 
   it("should distinguish tiny positive member spend from zero", async () => {
@@ -189,9 +200,11 @@ describe("customer member apps", () => {
     const user = userEvent.setup();
     render(<CustomerMemberApps memberId="member-1" />);
     await user.click(await screen.findByRole("button", { name: "Edit member budget for Assistant" }));
-    act(() => {
-      fireEvent.click(screen.getByRole("checkbox", { name: "Set custom limits" }));
-    });
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Budget source" }),
+      /^Inherited from customer organization or app/,
+    );
     await user.click(screen.getByRole("button", { name: "Save member app budget" }));
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     expect(await requests.find((row) => row.method === "PUT")?.json()).toEqual({ budget_override: null });

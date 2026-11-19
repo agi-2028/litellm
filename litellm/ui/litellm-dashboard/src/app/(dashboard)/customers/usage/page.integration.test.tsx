@@ -486,10 +486,7 @@ describe("CustomerHierarchyUsagePage", () => {
     ).toBeInTheDocument();
     const memberBudget = screen.getByRole("region", { name: "Current budget" });
     expect(within(memberBudget).getByText("$40.00 / $10.00")).toBeInTheDocument();
-    expect(within(memberBudget).getByRole("link", { name: "Edit budget" })).toHaveAttribute(
-      "href",
-      "/ui/customers/manage?org=org-1&team=team-a&member=member-a&from=2026-11-01&to=2026-11-03&tab=settings",
-    );
+    expect(within(memberBudget).getByRole("button", { name: "Edit budget" })).toBeEnabled();
     const memberUrl = activityUrl("customer_members", "member-a")!;
     expect(memberUrl.pathname).toBe("/management/v1/customer_members/daily/activity");
     expect(memberUrl.searchParams.get("customer_member_ids")).toBe("member-a");
@@ -638,7 +635,8 @@ describe("CustomerHierarchyUsagePage", () => {
       const row = within(table).getAllByRole("row")[1];
       expect(within(row).getByText("$40.00 / $50.00")).toBeInTheDocument();
       expect(within(row).getByText(`$${monthlySpend.toFixed(2)} / $10.00`)).toBeInTheDocument();
-      expect(within(row).getByText(`$${yearlySpend.toFixed(2)} / $100.00`)).toBeInTheDocument();
+      expect(within(row).getByText(`$${yearlySpend.toFixed(2)}`)).toBeInTheDocument();
+      expect(within(row).getByText("$100.00 limit")).toBeInTheDocument();
       expect(
         within(row)
           .getAllByRole("progressbar")

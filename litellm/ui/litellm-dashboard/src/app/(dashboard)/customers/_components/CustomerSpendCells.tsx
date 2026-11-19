@@ -149,7 +149,12 @@ export function CustomerSpendCells({
       <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>
         <div className="space-y-2">
           {yearlyBudgets.map((budget) => (
-            <CustomerBudgetWindow key={budget.source} budget={budget} showReset={yearlyBudgets.length > 1} />
+            <CustomerBudgetWindow
+              key={budget.source}
+              budget={budget}
+              showReset={yearlyBudgets.length > 1}
+              stacked={usageLayout}
+            />
           ))}
           {yearlyBudgets.length === 0 && (
             <CustomerBudgetSpend spend={yearlySpend} limit={null} label={t("customerPortal.analytics.yearlySpend")} />

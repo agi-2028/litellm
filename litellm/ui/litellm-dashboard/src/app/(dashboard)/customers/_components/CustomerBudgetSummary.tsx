@@ -5,6 +5,7 @@ import { CustomerBudgetWindow } from "./CustomerBudgetSpend";
 import { CUSTOMER_BUDGET_LABELS, customerBudgetPeriod, customerBudgetUsage } from "./customerBudgetUsage";
 import { CustomerRateLimitSummary } from "./CustomerRateLimits";
 import CustomerOrganizationBudgetDialog from "./CustomerOrganizationBudgetDialog";
+import CustomerMemberBudgetDialog from "./CustomerMemberBudgetDialog";
 import type { CustomerHierarchyScope } from "./customerHierarchyApi";
 
 export default function CustomerBudgetSummary({
@@ -29,7 +30,7 @@ export default function CustomerBudgetSummary({
     <section className="mt-2 min-w-0 space-y-2 text-sm" aria-label={t("customerPortal.analytics.budgetSummary")}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
         <span className="text-muted-foreground">{t("customerPortal.analytics.budgetSummary")}</span>
-        {organizationId ? (
+        {organizationId || scope.member ? (
           <button type="button" onClick={() => setEditing(true)} className="font-medium text-primary hover:underline">
             {editLabel}
           </button>
@@ -64,6 +65,14 @@ export default function CustomerBudgetSummary({
         <CustomerOrganizationBudgetDialog
           key={organizationId}
           organizationId={organizationId}
+          onClose={() => setEditing(false)}
+        />
+      )}
+      {editing && scope.member && (
+        <CustomerMemberBudgetDialog
+          key={scope.member}
+          memberId={scope.member}
+          organizationId={scope.org}
           onClose={() => setEditing(false)}
         />
       )}

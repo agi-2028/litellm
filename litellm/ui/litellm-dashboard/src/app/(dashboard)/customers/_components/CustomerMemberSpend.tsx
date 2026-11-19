@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { parseAsString, parseAsInteger, parseAsNumberLiteral, useQueryStates } from "nuqs";
 import { DataTablePagination } from "@/components/shared/DataTable";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,7 @@ import { compareCustomerBudgets, customerBudgetSortParser } from "./customerBudg
 import { CustomerBudgetSortHeader } from "./CustomerBudgetColumn";
 import { customerUsageTotals, EMPTY_CUSTOMER_USAGE } from "./customerUsageTotals";
 import CustomerTokenTotal from "./CustomerTokenTotal";
+import CustomerMemberBudgetDialog from "./CustomerMemberBudgetDialog";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25];
 const MEMBER_TABLE_PARSERS = {
@@ -34,6 +36,7 @@ export default function CustomerMemberSpend({
   onMemberClick: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const [editingMember, setEditingMember] = useState<string | null>(null);
   const [table, setTable] = useQueryStates(MEMBER_TABLE_PARSERS);
   const search = table.memberSearch;
   const tokenTotals = useMemo(() => customerUsageTotals(data.memberResults), [data.memberResults]);
@@ -81,7 +84,7 @@ export default function CustomerMemberSpend({
           <TableHeader>
             <TableRow>
               <TableHead className="px-4">{t("customerPortal.analytics.member")}</TableHead>
-              <TableHead className="px-4">{t("customerPortal.list.columns.tier")}</TableHead>
+              <TableHead className="px-4">{t("customerPortal.budgetEditor.group")}</TableHead>
               <CustomerSpendHeaders usageLayout>
                 <CustomerBudgetSortHeader
                   sort={table.budgetSort}
@@ -96,6 +99,7 @@ export default function CustomerMemberSpend({
                   }
                 />
               </CustomerSpendHeaders>
+              <TableHead className="px-4 text-right">{t("apps.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,11 +118,21 @@ export default function CustomerMemberSpend({
                   usageLayout
                   tokenContent={<CustomerTokenTotal usage={tokenTotals.get(member.id) ?? EMPTY_CUSTOMER_USAGE} />}
                 />
+                <TableCell className="px-4 text-right">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    aria-label={t("customerPortal.budgetEditor.memberAction", { name: member.label })}
+                    onClick={() => setEditingMember(member.id)}
+                  >
+                    {t("customerPortal.hierarchy.edit")}
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {members.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                   {t(search ? "customerPortal.analytics.noMatches" : "customerPortal.analytics.noMembers")}
                 </TableCell>
               </TableRow>
@@ -135,6 +149,13 @@ export default function CustomerMemberSpend({
           onPageSizeChange={(size) => void setTable({ memberPageSize: size, memberPage: null })}
         />
       </div>
+      {editingMember && (
+        <CustomerMemberBudgetDialog
+          memberId={editingMember}
+          organizationId={data.organization.id}
+          onClose={() => setEditingMember(null)}
+        />
+      )}
     </section>
   );
 }

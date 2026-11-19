@@ -6,10 +6,19 @@ import { useTranslation } from "react-i18next";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { loadApps } from "./appApi";
-import { appBudgetFields, appBudgetValue, type App, type AppMember } from "./appForms";
-import AppBudgetEditor from "./AppBudgetEditor";
+import { compactAppBudgetFields, compactAppBudgetValue, type App, type AppMember } from "./appForms";
+import AppBudgetCompactFields from "./AppBudgetCompactFields";
+import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import AppBudgetLimits from "./AppBudgetLimits";
 import { appBudgetWindows } from "./appBudgetPresentation";
 import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
@@ -164,19 +173,15 @@ function MemberAppRow({
         </TableCell>
       </TableRow>
       {editing && member.data && (
-        <TableRow>
-          <TableCell colSpan={usageContext ? 9 : 3}>
-            <MemberBudgetForm
-              app={app}
-              row={member.data}
-              onCancel={() => setEditing(false)}
-              onSaved={async () => {
-                await member.refetch();
-                setEditing(false);
-              }}
-            />
-          </TableCell>
-        </TableRow>
+        <MemberBudgetForm
+          app={app}
+          row={member.data}
+          onCancel={() => setEditing(false)}
+          onSaved={async () => {
+            await member.refetch();
+            setEditing(false);
+          }}
+        />
       )}
     </>
   );
@@ -230,12 +235,14 @@ function MemberBudgetForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const [fields, setFields] = useState(() => appBudgetFields(row.budget_override_id ? row.effective_budget : null));
+  const original = row.budget_override_id ? row.effective_budget : null;
+  const [fields, setFields] = useState(() => compactAppBudgetFields(original));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    const budget = appBudgetValue(fields, row.budget_override_id ? row.effective_budget : null);
+    if (pending) return;
+    const budget = compactAppBudgetValue(fields, original);
     if (!budget.ok) {
       setError(t(budget.error));
       return;
@@ -255,27 +262,52 @@ function MemberBudgetForm({
     }
   };
   return (
-    <form onSubmit={save} className="space-y-4 py-4" aria-label={t("apps.editMemberBudget", { alias: app.alias })}>
-      <AppBudgetEditor
-        title={t("apps.memberOverride")}
-        id={`app-member-${app.app_id}`}
-        fields={fields}
-        onChange={setFields}
-      />
-      <p className="text-sm text-muted-foreground">{t("apps.memberOverrideHint")}</p>
-      {error && (
-        <p role="alert" className="text-destructive">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
-          {t("apps.saveMemberBudget")}
-        </Button>
-        <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
-          {t("apps.cancel")}
-        </Button>
-      </div>
-    </form>
+    <Dialog open onOpenChange={(open) => !open && !pending && onCancel()}>
+      <DialogContent
+        className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        showCloseButton={!pending}
+      >
+        <DialogHeader className="shrink-0 border-b px-6 py-5">
+          <DialogTitle className="text-xl">{t("apps.editMemberBudget", { alias: app.alias })}</DialogTitle>
+          <DialogDescription>{t("apps.memberOverrideHint")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+          <fieldset disabled={pending} className="min-h-0 space-y-5 overflow-y-auto px-6 py-6">
+            <CustomerBudgetSourceSelect
+              profiles={[]}
+              value={fields.budgetEnabled ? "custom" : "inherit"}
+              title={t("apps.source")}
+              disabled={pending}
+              inheritedOption={{ label: t("apps.inheritedBudget"), summary: t("apps.inheritMemberHint") }}
+              onChange={(value) => setFields((current) => ({ ...current, budgetEnabled: value === "custom" }))}
+            />
+            {fields.budgetEnabled && (
+              <AppBudgetCompactFields
+                id={`app-member-${app.app_id}`}
+                fields={fields}
+                original={original}
+                disabled={pending}
+                onChange={setFields}
+              />
+            )}
+          </fieldset>
+          <div className="shrink-0 border-t bg-muted/20 px-6 py-4">
+            {error && (
+              <p role="alert" className="mb-3 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+                {t("apps.cancel")}
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {t("apps.saveMemberBudget")}
+              </Button>
+            </DialogFooter>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
