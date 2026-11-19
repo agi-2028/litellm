@@ -41,7 +41,7 @@ export default function AppProfileSelect({
       />
       {selected && <AppBudgetLimits budget={selected} />}
       <p className="text-xs text-muted-foreground">
-        <a href={uiHref("customers/settings")} className="text-primary hover:underline">
+        <a href={`${uiHref("customers/settings")}?tab=app`} className="text-primary hover:underline">
           {t("apps.manageProfiles")}
         </a>
       </p>
