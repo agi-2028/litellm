@@ -1,22 +1,23 @@
+import { type BudgetEditorFields, budgetPeriodAmount, updateBudgetPeriod } from "./customerBudgetForm";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
-import CustomerBudgetAmountInput from "../../customers/_components/CustomerBudgetAmountInput";
+import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 import { Label } from "@/components/ui/label";
-import CustomerAllowedModelsSelect from "../../customers/_components/CustomerAllowedModelsSelect";
-import { appBudgetPeriodAmount, updateAppBudgetPeriod, type AppBudgetFields, type Budget } from "./appForms";
+import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
+import type { Budget } from "./customerBudgetForm";
+import CustomerBudgetWindows from "./CustomerBudgetWindows";
+import { CustomerRateLimitInput, rateFields } from "./CustomerRateLimits";
 
-const rateFields = ["tpm", "rpm"] as const;
-
-export default function AppBudgetCompactFields({
+export default function CustomerBudgetCompactFields({
   fields,
   original,
   onChange,
   disabled,
   id,
 }: {
-  fields: AppBudgetFields;
+  fields: BudgetEditorFields;
   original?: Budget | null;
-  onChange: (fields: AppBudgetFields) => void;
+  onChange: (fields: BudgetEditorFields) => void;
   disabled: boolean;
   id: string;
 }) {
@@ -36,8 +37,8 @@ export default function AppBudgetCompactFields({
               id={`${id}-${period}`}
               label={t(period === "1mo" ? "apps.monthlyBudget" : "apps.yearlyBudget")}
               disabled={disabled}
-              value={appBudgetPeriodAmount(fields, period)}
-              onChange={(value) => onChange(updateAppBudgetPeriod(fields, period, value))}
+              value={budgetPeriodAmount(fields, period)}
+              onChange={(value) => onChange(updateBudgetPeriod(fields, period, value))}
             />
           </div>
         ))}
@@ -46,13 +47,9 @@ export default function AppBudgetCompactFields({
             <Label htmlFor={`${id}-${field}`} className="font-normal text-muted-foreground">
               {t(`customerPortal.hierarchy.${field}`)}
             </Label>
-            <Input
+            <CustomerRateLimitInput
               id={`${id}-${field}`}
-              type="number"
-              min={0}
-              step={1}
               disabled={disabled}
-              placeholder={t("customerPortal.createDialog.noLimit")}
               value={fields[field]}
               onChange={(event) => onChange({ ...fields, [field]: event.target.value })}
             />
@@ -92,32 +89,11 @@ export default function AppBudgetCompactFields({
       <details className="text-sm">
         <summary className="cursor-pointer text-muted-foreground">{t("apps.advancedLimits")}</summary>
         <div className="mt-4 space-y-4">
-          {fields.budgetWindows.map((window, index) => {
-            if (window.budget.budget_duration === "1mo" || window.budget.budget_duration === "12mo") return null;
-            return (
-              <div key={`${window.budget.budget_duration}-${index}`} className="space-y-2">
-                <Label htmlFor={`${id}-window-${index}`} className="font-normal text-muted-foreground">
-                  {t("apps.windowBudget", { period: window.budget.budget_duration })}
-                </Label>
-                <Input
-                  id={`${id}-window-${index}`}
-                  type="number"
-                  min={0}
-                  step="any"
-                  placeholder={t("customerPortal.createDialog.noLimit")}
-                  value={window.maxBudget}
-                  onChange={(event) =>
-                    onChange({
-                      ...fields,
-                      budgetWindows: fields.budgetWindows.map((entry, entryIndex) =>
-                        index === entryIndex ? { ...entry, maxBudget: event.target.value } : entry,
-                      ),
-                    })
-                  }
-                />
-              </div>
-            );
-          })}
+          <CustomerBudgetWindows
+            id={id}
+            windows={fields.budgetWindows}
+            onChange={(budgetWindows) => onChange({ ...fields, budgetWindows })}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor={`${id}-soft`} className="font-normal text-muted-foreground">

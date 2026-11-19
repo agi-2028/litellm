@@ -17,7 +17,7 @@ export interface CustomerBudgetGroupFields {
 export interface CustomerOrganizationFields {
   name: string;
   customerOrgId: string;
-  budgetMode: "custom" | "profile";
+  budgetMode: "inherit" | "custom" | "profile";
   budgetId: string;
   budgetAmount: string;
   budgetDuration: "1mo" | "12mo";
@@ -30,7 +30,7 @@ export interface CustomerOrganizationFields {
 export const initialCustomerOrganizationFields = (): CustomerOrganizationFields => ({
   name: "",
   customerOrgId: "",
-  budgetMode: "custom",
+  budgetMode: "inherit",
   budgetId: "",
   budgetAmount: "",
   budgetDuration: "1mo",
@@ -133,20 +133,21 @@ export function buildCustomerOrganizationBody(fields: CustomerOrganizationFields
   const validation = validateCustomerBudgetGroups(fields);
   if (!validation.ok) return validation;
   const useProfile = fields.budgetMode === "profile";
+  const useCustom = fields.budgetMode === "custom";
   if (useProfile && !fields.budgetId) return { ok: false, error: "profileRequired" } as const;
-  if (!useProfile && !validAmount(fields.budgetAmount)) return { ok: false, error: "invalidBudget" } as const;
-  if (!useProfile && [fields.tpm, fields.rpm].some((value) => !validRate(value))) {
+  if (useCustom && !validAmount(fields.budgetAmount)) return { ok: false, error: "invalidBudget" } as const;
+  if (useCustom && [fields.tpm, fields.rpm].some((value) => !validRate(value))) {
     return { ok: false, error: "invalidRateLimit" } as const;
   }
   const budget = optionalAmount(fields.budgetAmount);
   const tpm = optionalAmount(fields.tpm);
   const rpm = optionalAmount(fields.rpm);
-  const hasCustomBudget = !useProfile && [budget, tpm, rpm].some((value) => value !== null);
+  const hasCustomBudget = useCustom && [budget, tpm, rpm].some((value) => value !== null);
   const body = {
     alias: fields.name.trim(),
     ...(fields.customerOrgId.trim() ? { customer_org_id: fields.customerOrgId.trim() } : {}),
     ...(useProfile ? { budget_id: fields.budgetId } : {}),
-    ...(!useProfile && !hasCustomBudget ? { budget_id: null } : {}),
+    ...(useCustom && !hasCustomBudget ? { budget_id: null } : {}),
     ...(hasCustomBudget
       ? {
           budget: {

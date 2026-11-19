@@ -6,6 +6,7 @@ import { registerBaseUrlGetter } from "@/lib/http/runtime";
 import { uiHref } from "@/utils/uiHref";
 import { EMPTY_DAILY_ACTIVITY_METADATA } from "@/components/UsagePage/dailyActivityApi";
 import {
+  jsonResponse as json,
   act,
   fireEvent,
   renderWithProviders,
@@ -60,8 +61,6 @@ const member = {
 };
 const supportMember = { ...member, customer_member_id: "member-b", parent_team_ids: ["team-c"], alias: "Member Two" };
 const fetchMock = vi.fn<typeof fetch>();
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const requestUrl = (input: Parameters<typeof fetch>[0]) =>
   new URL(input instanceof Request ? input.url : String(input), "http://localhost");
 const requestedUrls = () => fetchMock.mock.calls.map(([input]) => requestUrl(input));

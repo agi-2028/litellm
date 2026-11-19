@@ -1,5 +1,7 @@
 "use client";
 
+import { budgetEditorFields, budgetEditorValue } from "../../customers/_components/customerBudgetForm";
+
 import { useMemo, useState, type FormEvent } from "react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
@@ -14,14 +16,7 @@ import { isProxyAdminRole } from "@/utils/roles";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { AdminOnlyNotice } from "@/components/shared/AdminOnlyNotice";
-import {
-  appBudgetFields,
-  appBudgetValue,
-  appSurchargeField,
-  appSurchargeValue,
-  type App,
-  type AppResource,
-} from "./appForms";
+import { appSurchargeField, appSurchargeValue, type App, type AppResource } from "./appForms";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
 import { applicationRows } from "./applications";
 import ApplicationsTable from "./ApplicationsTable";
@@ -178,8 +173,8 @@ function ResourceDefaults({ resource }: { resource: AppResource }) {
 function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [budget, setBudget] = useState(() => appBudgetFields(app?.budget));
-  const [member, setMember] = useState(() => appBudgetFields(app?.default_customer_member_budget));
+  const [budget, setBudget] = useState(() => budgetEditorFields(app?.budget));
+  const [member, setMember] = useState(() => budgetEditorFields(app?.default_customer_member_budget));
   const [profile, setProfile] = useState(app?.default_tier_budget_id ?? "");
   const [autoCreate, setAutoCreate] = useState(app?.auto_create_customers ?? true);
   const [surcharge, setSurcharge] = useState(() => appSurchargeField(app?.customer_margin));
@@ -188,8 +183,8 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
   const [saved, setSaved] = useState(false);
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    const appBudget = appBudgetValue(budget, app?.budget);
-    const memberBudget = appBudgetValue(member, app?.default_customer_member_budget);
+    const appBudget = budgetEditorValue(budget, app?.budget);
+    const memberBudget = budgetEditorValue(member, app?.default_customer_member_budget);
     if (!appBudget.ok || !memberBudget.ok) {
       setError(t("customerPortal.hierarchy.invalidNumber"));
       return;

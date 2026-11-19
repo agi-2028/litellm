@@ -2,6 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { registerBaseUrlGetter } from "@/lib/http/runtime";
 import {
+  jsonResponse as json,
   renderWithProviders as render,
   screen,
   fireEvent,
@@ -28,8 +29,6 @@ const app: App = {
   updated_by: "",
 };
 const fetchMock = vi.fn<typeof fetch>();
-const json = (value: unknown, status = 200) =>
-  new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 beforeEach(() => {
   testQueryClient.clear();
   registerBaseUrlGetter(() => "http://localhost");

@@ -1,5 +1,7 @@
 "use client";
 
+import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
+
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -8,8 +10,8 @@ import { extractProxyErrorMessage } from "@/lib/http/client";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { loadApps } from "./appApi";
-import { compactAppBudgetFields, compactAppBudgetValue, type App, type AppMember } from "./appForms";
-import AppBudgetCompactFields from "./AppBudgetCompactFields";
+import { type App, type AppMember } from "./appForms";
+import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
 import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
 import AppBudgetLimits from "./AppBudgetLimits";
@@ -163,13 +165,13 @@ function MemberBudgetForm({
 }) {
   const { t } = useTranslation();
   const original = row.budget_override_id ? row.effective_budget : null;
-  const [fields, setFields] = useState(() => compactAppBudgetFields(original));
+  const [fields, setFields] = useState(() => compactBudgetEditorFields(original));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (pending) return;
-    const budget = compactAppBudgetValue(fields, original);
+    const budget = compactBudgetEditorValue(fields, original);
     if (!budget.ok) {
       setError(t(budget.error));
       return;
@@ -211,7 +213,7 @@ function MemberBudgetForm({
           onChange={(value) => setFields((current) => ({ ...current, budgetEnabled: value === "custom" }))}
         />
         {fields.budgetEnabled && (
-          <AppBudgetCompactFields
+          <CustomerBudgetCompactFields
             id={`app-member-${app.app_id}`}
             fields={fields}
             original={original}

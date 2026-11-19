@@ -8,6 +8,7 @@ import {
 
 const fields = () => ({
   ...initialCustomerOrganizationFields(),
+  budgetMode: "custom" as const,
   name: " Example customer ",
   customerOrgId: " customer-001 ",
 });
@@ -40,6 +41,21 @@ describe("buildCustomerOrganizationBody", () => {
         groups: input.groups.map((group) => ({ ...group, monthlyBudget: "", yearlyBudget: "", allowedModels: [" "] })),
       }),
     ).toEqual({ ok: false, error: "groupLimitRequired" });
+  });
+
+  it("leaves the server default in control until limits are explicitly selected", () => {
+    const input = {
+      ...fields(),
+      budgetMode: "inherit",
+      budgetId: "stale-profile",
+      budgetAmount: "-1",
+      tpm: "invalid",
+    } satisfies CustomerOrganizationFields;
+    const result = buildCustomerOrganizationBody(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body).not.toHaveProperty("budget_id");
+    expect(result.body).not.toHaveProperty("budget");
   });
 
   it("creates the organization, overall calendar budget, and independent member caps together", () => {

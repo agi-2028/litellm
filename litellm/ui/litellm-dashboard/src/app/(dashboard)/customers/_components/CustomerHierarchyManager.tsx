@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import CustomerHierarchyNavigation, { useCustomerHierarchyLinks } from "./CustomerHierarchyNavigation";
 import CustomerHierarchySettings from "./CustomerHierarchySettings";
-import CustomerMemberBudgetDialog from "./CustomerMemberBudgetDialog";
+import CustomerEntityBudgetDialog from "./CustomerEntityBudgetDialog";
 import CustomerBudgetGroups from "./CustomerBudgetGroups";
 import CustomerBudgetSummary from "./CustomerBudgetSummary";
 import CustomerOrganizationApps from "../../apps/_components/CustomerOrganizationApps";
@@ -327,7 +327,7 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
         </TableBody>
       </Table>
       {editingMember && (
-        <CustomerMemberBudgetDialog
+        <CustomerEntityBudgetDialog
           memberId={editingMember}
           organizationId={props.scope.org}
           onClose={() => setEditingMember(null)}

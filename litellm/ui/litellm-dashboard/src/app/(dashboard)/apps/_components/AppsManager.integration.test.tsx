@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { registerBaseUrlGetter } from "@/lib/http/runtime";
 import {
+  jsonResponse as json,
   fireEvent,
   renderWithProviders as render,
   screen,
@@ -19,8 +20,6 @@ vi.mock("@/app/(dashboard)/hooks/models/useModels", () => ({
   useAllProxyModels: () => ({ data: { data: [] }, isLoading: false, isError: false }),
 }));
 const fetchMock = vi.fn<typeof fetch>();
-const json = (value: unknown, status = 200) =>
-  new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 const resource = { resource_type: "team", resource_id: "team-chat", alias: "chat", app_id: null };
 const app = {
   ...resource,

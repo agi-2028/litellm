@@ -218,6 +218,7 @@ describe("customer hierarchy settings payloads", () => {
         kind: "member",
         body: {
           budget_override: {
+            budget_limits: null,
             max_budget: 50,
             soft_budget: null,
             tpm_limit: null,

@@ -4,6 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { registerBaseUrlGetter } from "@/lib/http/runtime";
 import { uiHref } from "@/utils/uiHref";
 import {
+  jsonResponse as json,
   renderWithProviders as render,
   screen,
   fireEvent,
@@ -37,8 +38,6 @@ const assignedBudget = {
   },
 };
 const fetchMock = vi.fn<typeof fetch>();
-const json = (value: unknown, status = 200) =>
-  new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 let configured: boolean;
 let bound: boolean;
 let assigned: boolean;
@@ -160,80 +159,49 @@ describe("customer app budgets", () => {
     expect(screen.getByText("500")).toBeInTheDocument();
   });
 
-  it("waits for a delayed legacy preset without offering other organization presets", async () => {
+  it.each(["loading", "error"] as const)("keeps a legacy assignment while the catalog is %s", async (status) => {
     bound = true;
     assigned = true;
     const serve = fetchMock.getMockImplementation()!;
-    let resolveLegacy: (response: Response) => void = () => {
-      throw new Error("Expected the legacy catalog request");
-    };
-    fetchMock.mockImplementation(async (input, init) => {
-      const request = input as Request;
-      if (new URL(request.url).pathname === "/management/v1/customer_organization_budget_groups")
-        return new Promise<Response>((resolve) => {
-          resolveLegacy = resolve;
-        });
-      if (request.method === "GET" && new URL(request.url).pathname.endsWith("/customer_organizations/org-1"))
-        return json({ ...assignedBudget, tier_budget_id: "org-standard" });
-      return serve(input, init);
-    });
-    const user = userEvent.setup();
-    render(<CustomerOrganizationApps organizationId="org-1" />);
-    await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
-    const source = await screen.findByRole("combobox", { name: "Budget source" });
-    expect(source).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save app budget" })).toBeDisabled();
-    await act(async () =>
-      resolveLegacy(
-        json({
-          default_budgets: [
-            { budget_id: "org-standard", name: "Standard", max_budget: 1000 },
-            { budget_id: "org-enterprise", name: "Enterprise", max_budget: 5000 },
-          ],
-        }),
-      ),
-    );
-    await waitFor(() => expect(source).toHaveTextContent("Standard"));
-    await user.click(source);
-    expect(await screen.findByRole("option", { name: /^Tier 1/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /^Enterprise/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("option", { name: /^Standard/ }));
-    await user.click(screen.getByRole("button", { name: "Save app budget" }));
-    await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
-    expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
-      tier_budget_id: "org-standard",
-      budget_override: null,
-      customer_member_budget: null,
-    });
-  });
-
-  it("shows and retries a failed legacy catalog request before saving the assigned preset", async () => {
-    bound = true;
-    assigned = true;
     let legacyAvailable = false;
-    const serve = fetchMock.getMockImplementation()!;
+    const { promise, resolve } = Promise.withResolvers<void>();
     fetchMock.mockImplementation(async (input, init) => {
       const request = input as Request;
       const path = new URL(request.url).pathname;
       if (request.method === "GET" && path.endsWith("/customer_organizations/org-1"))
         return json({ ...assignedBudget, tier_budget_id: "org-standard" });
-      if (path === "/management/v1/customer_organization_budget_groups" && !legacyAvailable)
-        return json({ detail: "Legacy catalog unavailable" }, 503);
+      if (path === "/management/v1/customer_organization_budget_groups") {
+        if (status === "loading") await promise;
+        if (status === "error" && !legacyAvailable) return json({ detail: "Legacy catalog unavailable" }, 503);
+      }
       return serve(input, init);
     });
     const user = userEvent.setup();
     render(<CustomerOrganizationApps organizationId="org-1" />);
     await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
-    expect(await screen.findByText("Legacy catalog unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Budget source" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save app budget" })).toBeDisabled();
-    legacyAvailable = true;
-    await user.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Budget source" })).toHaveTextContent("Standard"));
-    await user.click(screen.getByRole("button", { name: "Save app budget" }));
+    if (status === "error") expect(await screen.findByText("Legacy catalog unavailable")).toBeInTheDocument();
+    const source = await screen.findByRole("combobox", { name: "Budget source" });
+    const save = screen.getByRole("button", { name: "Save app budget" });
+    expect(source).toBeDisabled();
+    expect(save).toBeDisabled();
+    if (status === "loading") await act(async () => resolve());
+    else {
+      legacyAvailable = true;
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+    }
+    await waitFor(() => expect(source).toHaveTextContent("Standard"));
+    if (status === "loading") {
+      await user.click(source);
+      expect(await screen.findByRole("option", { name: /^Tier 1/ })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: /^Enterprise/ })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("option", { name: /^Standard/ }));
+    }
+    await user.click(save);
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
-    expect(await requests.find((request) => request.method === "PUT")!.json()).toMatchObject({
+    expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
       tier_budget_id: "org-standard",
+      budget_override: null,
+      customer_member_budget: null,
     });
   });
 

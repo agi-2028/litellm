@@ -2,7 +2,14 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import { fireEvent, renderWithProviders, screen, testQueryClient, waitFor } from "../../../../../tests/test-utils";
+import {
+  chooseSelectOption,
+  fireEvent,
+  renderWithProviders,
+  screen,
+  testQueryClient,
+  waitFor,
+} from "../../../../../tests/test-utils";
 import CreateCustomerDialog from "./CreateCustomerDialog";
 
 const creations: unknown[] = [];
@@ -96,7 +103,8 @@ describe("CreateCustomerDialog", () => {
     }
     await user.click(screen.getByRole("button", { name: "Create customer" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith("created-org"));
-    expect(creations[0]).toMatchObject({ budget_id: custom ? null : "named-group" });
+    if (custom) expect(creations[0]).toMatchObject({ budget_id: null });
+    else expect(creations[0]).not.toHaveProperty("budget_id");
     expect(creations[0]).not.toHaveProperty("budget");
   });
 
@@ -120,7 +128,13 @@ describe("CreateCustomerDialog", () => {
 
   it("submits custom limits when the profile catalog is unavailable", async () => {
     catalogStatus = 503;
+    const user = userEvent.setup();
     renderWithProviders(<Harness />);
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Customer organization limits" }),
+      "Enter custom limits instead",
+    );
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
     fireEvent.change(screen.getByLabelText("Spend limit (USD)"), { target: { value: "40" } });
     await userEvent.click(screen.getByRole("button", { name: "Create customer" }));
@@ -129,11 +143,23 @@ describe("CreateCustomerDialog", () => {
     expect(creations[0]).not.toHaveProperty("budget_id");
   });
 
+  it("preserves the server default when the catalog fails and limits are untouched", async () => {
+    catalogStatus = 503;
+    defaultBudgetId = "named-group";
+    renderWithProviders(<Harness />);
+    fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create customer" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Create customer" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+    expect(creations[0]).not.toHaveProperty("budget_id");
+    expect(creations[0]).not.toHaveProperty("budget");
+  });
+
   it("previews profile limits and preserves custom values when switching modes", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness />);
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
-    fireEvent.change(screen.getByLabelText("Spend limit (USD)"), { target: { value: "15000" } });
+    fireEvent.change(await screen.findByLabelText("Spend limit (USD)"), { target: { value: "15000" } });
     fireEvent.change(screen.getByLabelText("Tokens per minute"), { target: { value: "25000" } });
     fireEvent.change(screen.getByLabelText("Requests per minute"), { target: { value: "120" } });
     fireEvent.change(screen.getByLabelText("Group 2 tokens per minute"), { target: { value: "5000" } });
