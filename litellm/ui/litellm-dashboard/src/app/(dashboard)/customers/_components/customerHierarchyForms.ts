@@ -93,10 +93,7 @@ export const customerHierarchyFields = (
     ...(entity.kind === "member" ? compactBudgetEditorFields(storedBudget) : budgetEditorFields(storedBudget)),
     ...(entity.kind === "member" ? { budgetEnabled: !memberPreset } : {}),
     ...(monthly ? { maxBudget: String(monthly.max_budget) } : {}),
-    templateId:
-      entity.kind === "team" || privateMember
-        ? ""
-        : entity.record.budget_id ?? "",
+    templateId: entity.kind === "team" || privateMember ? "" : entity.record.budget_id ?? "",
   };
 };
 
