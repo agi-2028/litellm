@@ -364,10 +364,7 @@ describe("CustomerHierarchyUsagePage", () => {
     const budget = screen.getByRole("region", { name: "Current budget" });
     expect(within(budget).getByText("$40.00 / $100.00")).toBeInTheDocument();
     expect(within(budget).getByText("Recorded budget spend")).toBeInTheDocument();
-    expect(within(budget).getByRole("link", { name: "Edit budget" })).toHaveAttribute(
-      "href",
-      "/ui/customers/manage?org=org-1&from=2026-11-01&to=2026-11-03&tab=settings",
-    );
+    expect(within(budget).getByRole("button", { name: "Edit budget" })).toBeEnabled();
     expect(screen.getByTitle("700 tokens")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Usage over time" })).toBeInTheDocument();
     expect(tableRows("Models")[0]).toHaveTextContent("model-a");

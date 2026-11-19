@@ -102,7 +102,6 @@ describe("CustomerHierarchySettings", () => {
         onDeleted={onDeleted}
       />,
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: "Set custom limits" }));
     fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "50000" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "60" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
@@ -123,7 +122,7 @@ describe("CustomerHierarchySettings", () => {
     );
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Example organization");
     expect(screen.getByRole("textbox", { name: "Identifier" })).toHaveAttribute("readonly");
-    expect(screen.getByRole("combobox", { name: "Customer budget (USD)" })).toHaveValue("100");
+    expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(100);
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 
@@ -160,15 +159,15 @@ describe("CustomerHierarchySettings", () => {
       />,
     );
     const save = screen.getByRole("button", { name: "Save changes" });
-    const budget = screen.getByRole("combobox", { name: "Customer budget (USD)" });
+    const source = screen.getByRole("combobox", { name: "Customer organization limits" });
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), { target: { value: "Renamed" } });
-    await user.clear(budget);
     if (viaGroup) {
-      await user.click(budget);
-      await user.click(screen.getByRole("option", { name: "Growth", exact: true }));
-      await user.clear(budget);
+      await chooseSelectOption(user, source, /Growth/);
+      await chooseSelectOption(user, source, "Enter custom limits instead");
     }
-    if (amount) await user.type(budget, amount);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), {
+      target: { value: amount ? "0" : "" },
+    });
     await user.click(save);
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(lastRequest().method).toBe("PATCH");
@@ -192,16 +191,17 @@ describe("CustomerHierarchySettings", () => {
       />,
     );
     const save = screen.getByRole("button", { name: "Save changes" });
-    const budget = screen.getByRole("combobox", { name: "Customer budget (USD)" });
-    expect(budget).toHaveValue("Growth");
-    await user.clear(budget);
-    if (amount) await user.type(budget, amount === "Growth" ? "$175" : amount);
+    const source = screen.getByRole("combobox", { name: "Customer organization limits" });
+    expect(source).toHaveTextContent("Growth");
+    await chooseSelectOption(user, source, "Enter custom limits instead");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), {
+      target: { value: amount ? "175" : "" },
+    });
     if (amount === "Growth") {
-      fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute", hidden: true }), {
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), {
         target: { value: "300" },
       });
-      await user.clear(budget);
-      await user.click(screen.getByRole("option", { name: "Growth", exact: true }));
+      await chooseSelectOption(user, source, /Growth/);
       expect(save).toBeDisabled();
       fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), { target: { value: "Renamed" } });
     }
@@ -235,16 +235,14 @@ describe("CustomerHierarchySettings", () => {
         onDeleted={onDeleted}
       />,
     );
-    const budget = screen.getByRole("combobox", { name: "Customer budget (USD)" });
+    const source = screen.getByRole("combobox", { name: "Customer organization limits" });
     if (unavailable) await screen.findByRole("button", { name: "Retry" });
     if (shared) {
-      expect(budget).toBeDisabled();
+      expect(source).toBeDisabled();
       expect(screen.queryByRole("spinbutton", { name: "Tokens per minute" })).not.toBeInTheDocument();
     } else {
-      expect(budget).toBeEnabled();
-      await userEvent.clear(budget);
-      await userEvent.type(budget, "$40");
-      await userEvent.keyboard("{Escape}");
+      expect(source).toBeEnabled();
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "40" } });
       fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute", hidden: true }), {
         target: { value: "300" },
       });
@@ -258,44 +256,20 @@ describe("CustomerHierarchySettings", () => {
     });
   });
 
-  it.each([false, true])("toggles custom assignment from enabled %s", async (enabled) => {
-    const custom = {
-      ...organization,
-      budget_id: enabled ? "owned" : null,
-      budget: enabled ? organization.budget : null,
-    };
-    fetchMock.mockResolvedValue(json(custom));
+  it("clears the custom spend cap while retaining soft budgets and rate limits", async () => {
+    fetchMock.mockResolvedValue(json(organization));
     render(
       <CustomerHierarchySettings
-        entity={{ kind: "organization", record: custom }}
-        organization={custom}
+        entity={{ kind: "organization", record: organization }}
+        organization={organization}
         onSaved={onSaved}
         onDeleted={onDeleted}
       />,
     );
-    await userEvent.click(screen.getByRole("checkbox", { name: "Set custom limits" }));
-    expect(screen.getByRole("combobox", { name: "Customer budget (USD)" })).toHaveValue("");
-    if (!enabled) {
-      fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "10" } });
-      const budget = screen.getByRole("combobox", { name: "Customer budget (USD)" });
-      await userEvent.type(budget, "$40");
-      await userEvent.clear(budget);
-      await userEvent.keyboard("{Escape}");
-    }
-    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(await lastRequest().clone().json()).toEqual({
-      budget: enabled
-        ? null
-        : {
-            max_budget: null,
-            soft_budget: null,
-            tpm_limit: null,
-            rpm_limit: 10,
-            budget_duration: null,
-            allowed_models: null,
-          },
-    });
+    expect(await lastRequest().clone().json()).toEqual({ budget: { ...organization.budget, max_budget: null } });
   });
 
   it("should show friendly template names while sending the selected template identifier", async () => {

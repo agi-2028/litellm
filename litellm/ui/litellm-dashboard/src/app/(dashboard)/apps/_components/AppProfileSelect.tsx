@@ -1,6 +1,7 @@
 "use client";
 
 import { SearchSelect } from "@/components/shared/SearchSelect";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { useTranslation } from "react-i18next";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
@@ -32,7 +33,7 @@ export default function AppProfileSelect({
         value={value}
         placeholder={emptyLabel}
         onValueChange={(value) => onChange(value ?? "")}
-        disabled={!groups.data}
+        disabled={!groups.isSuccess}
         options={[
           { value: "", label: emptyLabel },
           ...(groups.data?.default_budgets ?? []).map((group) => ({ value: group.budget_id, label: group.name })),
@@ -45,9 +46,7 @@ export default function AppProfileSelect({
         </a>
       </p>
       {groups.isError && (
-        <p role="alert" className="text-sm text-destructive">
-          {extractProxyErrorMessage(groups.error)}
-        </p>
+        <ErrorState message={extractProxyErrorMessage(groups.error)} onRetry={() => void groups.refetch()} />
       )}
     </div>
   );

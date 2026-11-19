@@ -21265,6 +21265,11 @@
       "hint": "Spend limits are optional. Other applicable limits still apply.",
       "noSpendLimit": "No spend limit"
     },
+    "budgetEditor": {
+      "title": "Edit organization budget",
+      "customPeriod": "Custom period",
+      "noReset": "No reset"
+    },
     "editDialog": {
       "title": "Edit customer",
       "alias": "Alias",

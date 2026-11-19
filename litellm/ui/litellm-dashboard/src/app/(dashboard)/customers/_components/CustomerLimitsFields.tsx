@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
@@ -126,12 +127,14 @@ export function CustomerCustomLimitFields({
   disabled,
   idPrefix,
   inheritBlank = false,
+  periodControl,
 }: {
   fields: CustomerLimitValues;
   onChange: (patch: Partial<CustomerLimitValues>) => void;
   disabled: boolean;
   idPrefix: string;
   inheritBlank?: boolean;
+  periodControl?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
@@ -156,30 +159,32 @@ export function CustomerCustomLimitFields({
             value={fields.budgetAmount}
             onChange={(event) => onChange({ budgetAmount: event.target.value })}
           />
-          <Select
-            value={fields.budgetDuration}
-            disabled={disabled}
-            onValueChange={(value) => {
-              if (value === "1mo" || value === "12mo") onChange({ budgetDuration: value });
-            }}
-          >
-            <SelectTrigger
-              aria-label={t("customerPortal.hierarchy.budgetDuration")}
-              className="h-full shrink-0 rounded-l-none border-0 border-l bg-muted/30 px-3 shadow-none"
+          {periodControl ?? (
+            <Select
+              value={fields.budgetDuration}
+              disabled={disabled}
+              onValueChange={(value) => {
+                if (value === "1mo" || value === "12mo") onChange({ budgetDuration: value });
+              }}
             >
-              <SelectValue>
-                {t(
-                  fields.budgetDuration === "1mo"
-                    ? "customerPortal.createDialog.perMonth"
-                    : "customerPortal.createDialog.perYear",
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1mo">{t("customerPortal.createDialog.perMonth")}</SelectItem>
-              <SelectItem value="12mo">{t("customerPortal.createDialog.perYear")}</SelectItem>
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                aria-label={t("customerPortal.hierarchy.budgetDuration")}
+                className="h-full shrink-0 rounded-l-none border-0 border-l bg-muted/30 px-3 shadow-none"
+              >
+                <SelectValue>
+                  {t(
+                    fields.budgetDuration === "1mo"
+                      ? "customerPortal.createDialog.perMonth"
+                      : "customerPortal.createDialog.perYear",
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1mo">{t("customerPortal.createDialog.perMonth")}</SelectItem>
+                <SelectItem value="12mo">{t("customerPortal.createDialog.perYear")}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </InputGroup>
       </div>
       {rateFields.map((field) => (

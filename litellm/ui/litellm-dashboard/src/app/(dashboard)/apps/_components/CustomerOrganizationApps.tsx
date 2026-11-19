@@ -400,6 +400,7 @@ function OrganizationAppForm({
     compactAppBudgetFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
   );
   const [error, setError] = useState<string | null>(null);
+  const profileUnavailable = source === "profile" && !groups.isSuccess;
   const changeSource = (value: string | null) => {
     if (value === "custom" || value === "inherit") {
       setSource(value);
@@ -413,6 +414,7 @@ function OrganizationAppForm({
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    if (pending || profileUnavailable) return;
     const budget = compactAppBudgetValue(
       { ...override, budgetEnabled: source === "custom" },
       row?.budget_override_id ? row.effective_budget : null,
@@ -471,7 +473,7 @@ function OrganizationAppForm({
             value={source === "profile" ? `profile:${profile}` : source}
             onChange={changeSource}
             title={t("apps.source")}
-            disabled={pending}
+            disabled={pending || !groups.isSuccess}
             loading={groups.isPending}
             inheritedOption={{ label: t("apps.appDefault"), summary: t("apps.appDefaultHint") }}
           />
@@ -526,7 +528,7 @@ function OrganizationAppForm({
         <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
           {t("apps.cancel")}
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || profileUnavailable}>
           {t("apps.saveBudget")}
         </Button>
       </DialogFooter>

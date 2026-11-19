@@ -336,12 +336,13 @@ describe("customer hierarchy management", () => {
     act(() => {
       fireEvent.change(monthly, { target: { value: "15" } });
     });
-    await user.click(screen.getByRole("radio", { name: "Use Alternate as default" }));
+    await user.click(screen.getByRole("combobox", { name: "New members join" }));
+    await user.click(await screen.findByRole("option", { name: "Alternate", exact: true }));
     fetchMock.mockImplementation(async () => json(refreshed));
     await act(() => testQueryClient.invalidateQueries({ queryKey: ["customer-hierarchy"] }));
     expect(await screen.findByRole("heading", { name: "Refreshed customer" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Group 1 monthly budget (USD)" })).toHaveValue(15);
-    expect(screen.getByRole("radio", { name: "Use Alternate as default" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "New members join" })).toHaveTextContent("Alternate");
     fetchMock.mockClear();
     fetchMock.mockImplementation(async () => json({ detail: "Budget groups changed. Reload before saving." }, 409));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -359,13 +360,14 @@ describe("customer hierarchy management", () => {
         target: { value: "15" },
       });
     });
-    await user.click(screen.getByRole("radio", { name: "Use Alternate as default" }));
+    await user.click(screen.getByRole("combobox", { name: "New members join" }));
+    await user.click(await screen.findByRole("option", { name: "Alternate", exact: true }));
     fetchMock.mockClear();
     fetchMock.mockImplementation(async () => json(saved));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled());
     expect(screen.getByRole("spinbutton", { name: "Group 1 monthly budget (USD)" })).toHaveValue(15);
-    expect(screen.getByRole("radio", { name: "Use Alternate as default" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "New members join" })).toHaveTextContent("Alternate");
     const writes = fetchMock.mock.calls
       .map(([input]) => input)
       .filter((input): input is Request => input instanceof Request && input.method !== "GET");

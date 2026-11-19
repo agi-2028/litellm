@@ -100,7 +100,7 @@ function HierarchyHeader({ hierarchy, selected }: Pick<ScopeProps, "hierarchy" |
           )}
         </div>
         <div className="w-full sm:w-72">
-          <CustomerBudgetSummary entity={budgetEntity} settingsHref={budgetSettingsHref} />
+          <CustomerBudgetSummary entity={budgetEntity} settingsHref={budgetSettingsHref} scope={budgetScope} />
         </div>
       </div>
     </header>

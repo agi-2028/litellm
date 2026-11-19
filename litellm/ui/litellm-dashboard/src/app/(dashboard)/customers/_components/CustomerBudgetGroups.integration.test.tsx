@@ -55,9 +55,18 @@ describe("CustomerBudgetGroups", () => {
         <CustomerBudgetGroups organization={organization} onSaved={onSaved} />
       ),
     );
-    const rates = within(screen.getByRole("group", { name: "Group 1 rate limits" }));
-    fireEvent.change(rates.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "50000" } });
-    fireEvent.change(rates.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+    const tokens = global
+      ? within(screen.getByRole("group", { name: "Group 1 rate limits" })).getByRole("spinbutton", {
+          name: "Tokens per minute",
+        })
+      : screen.getByRole("spinbutton", { name: "Group 1 tokens per minute" });
+    const requests = global
+      ? within(screen.getByRole("group", { name: "Group 1 rate limits" })).getByRole("spinbutton", {
+          name: "Requests per minute",
+        })
+      : screen.getByRole("spinbutton", { name: "Group 1 requests per minute" });
+    fireEvent.change(tokens, { target: { value: "50000" } });
+    fireEvent.change(requests, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     const request = fetchMock.mock.calls[0][0] as Request;
@@ -139,13 +148,14 @@ describe("CustomerBudgetGroups", () => {
       target: { value: "15" },
     });
     await user.click(screen.getByRole("combobox", { name: "Group 1 at the cap" }));
-    await user.click(await screen.findByRole("option", { name: "Pause, they can request more" }));
+    await user.click(await screen.findByRole("option", { name: "Pause, allow increase requests" }));
     await user.click(screen.getByRole("button", { name: "Add budget group" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Group name 3" }), { target: { value: "New" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Group 3 monthly budget (USD)" }), {
       target: { value: "30" },
     });
-    await user.click(screen.getByRole("radio", { name: "Use New as default" }));
+    await user.click(screen.getByRole("combobox", { name: "New members join" }));
+    await user.click(await screen.findByRole("option", { name: "New", exact: true }));
     await user.click(screen.getByRole("button", { name: "Remove Old" }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
@@ -213,7 +223,7 @@ describe("CustomerBudgetGroups", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Group 1 monthly budget (USD)" }), {
       target: { value: "10" },
     });
-    expect(screen.getByRole("radio", { name: "Use First as default" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "New members join" })).toHaveTextContent("First");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     const request = fetchMock.mock.calls[0][0];

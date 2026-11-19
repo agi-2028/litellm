@@ -97,12 +97,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer app budgets", () => {
-  it("keeps an existing legacy preset without offering other organization presets", async () => {
+  it("waits for a delayed legacy preset without offering other organization presets", async () => {
     bound = true;
     assigned = true;
     const serve = fetchMock.getMockImplementation()!;
+    let resolveLegacy: (response: Response) => void = () => {
+      throw new Error("Expected the legacy catalog request");
+    };
     fetchMock.mockImplementation(async (input, init) => {
       const request = input as Request;
+      if (new URL(request.url).pathname === "/management/v1/customer_organization_budget_groups")
+        return new Promise<Response>((resolve) => {
+          resolveLegacy = resolve;
+        });
       if (request.method === "GET" && new URL(request.url).pathname.endsWith("/customer_organizations/org-1"))
         return json({ ...assignedBudget, tier_budget_id: "org-standard" });
       return serve(input, init);
@@ -111,6 +118,18 @@ describe("customer app budgets", () => {
     render(<CustomerOrganizationApps organizationId="org-1" />);
     await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
     const source = await screen.findByRole("combobox", { name: "Budget source" });
+    expect(source).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save app budget" })).toBeDisabled();
+    await act(async () =>
+      resolveLegacy(
+        json({
+          default_budgets: [
+            { budget_id: "org-standard", name: "Standard", max_budget: 1000 },
+            { budget_id: "org-enterprise", name: "Enterprise", max_budget: 5000 },
+          ],
+        }),
+      ),
+    );
     await waitFor(() => expect(source).toHaveTextContent("Standard"));
     await user.click(source);
     expect(await screen.findByRole("option", { name: /^Tier 1/ })).toBeInTheDocument();
@@ -122,6 +141,36 @@ describe("customer app budgets", () => {
       tier_budget_id: "org-standard",
       budget_override: null,
       customer_member_budget: null,
+    });
+  });
+
+  it("shows and retries a failed legacy catalog request before saving the assigned preset", async () => {
+    bound = true;
+    assigned = true;
+    let legacyAvailable = false;
+    const serve = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      const request = input as Request;
+      const path = new URL(request.url).pathname;
+      if (request.method === "GET" && path.endsWith("/customer_organizations/org-1"))
+        return json({ ...assignedBudget, tier_budget_id: "org-standard" });
+      if (path === "/management/v1/customer_organization_budget_groups" && !legacyAvailable)
+        return json({ detail: "Legacy catalog unavailable" }, 503);
+      return serve(input, init);
+    });
+    const user = userEvent.setup();
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
+    expect(await screen.findByText("Legacy catalog unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Budget source" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save app budget" })).toBeDisabled();
+    legacyAvailable = true;
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Budget source" })).toHaveTextContent("Standard"));
+    await user.click(screen.getByRole("button", { name: "Save app budget" }));
+    await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+    expect(await requests.find((request) => request.method === "PUT")!.json()).toMatchObject({
+      tier_budget_id: "org-standard",
     });
   });
 

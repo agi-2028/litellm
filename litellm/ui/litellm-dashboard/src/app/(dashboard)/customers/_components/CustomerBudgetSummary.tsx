@@ -1,29 +1,43 @@
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import type { CustomerUsageEntity } from "./customerUsageApi";
 import { CustomerBudgetWindow } from "./CustomerBudgetSpend";
 import { CUSTOMER_BUDGET_LABELS, customerBudgetPeriod, customerBudgetUsage } from "./customerBudgetUsage";
 import { CustomerRateLimitSummary } from "./CustomerRateLimits";
+import CustomerOrganizationBudgetDialog from "./CustomerOrganizationBudgetDialog";
+import type { CustomerHierarchyScope } from "./customerHierarchyApi";
 
 export default function CustomerBudgetSummary({
   entity,
   settingsHref,
+  scope,
 }: {
   entity: CustomerUsageEntity;
   settingsHref: string;
+  scope: CustomerHierarchyScope;
 }) {
   const { t } = useTranslation();
   const budgets = customerBudgetUsage(entity);
+  const organizationId = !scope.team && !scope.member ? scope.org : undefined;
+  const [editing, setEditing] = useState(false);
+  const editLabel = t(
+    budgets.length > 0 || entity.rateLimits
+      ? "customerPortal.analytics.editBudget"
+      : "customerPortal.analytics.setBudget",
+  );
   return (
     <section className="mt-2 min-w-0 space-y-2 text-sm" aria-label={t("customerPortal.analytics.budgetSummary")}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
         <span className="text-muted-foreground">{t("customerPortal.analytics.budgetSummary")}</span>
-        <a href={settingsHref} className="font-medium text-primary hover:underline">
-          {t(
-            budgets.length > 0 || entity.rateLimits
-              ? "customerPortal.analytics.editBudget"
-              : "customerPortal.analytics.setBudget",
-          )}
-        </a>
+        {organizationId ? (
+          <button type="button" onClick={() => setEditing(true)} className="font-medium text-primary hover:underline">
+            {editLabel}
+          </button>
+        ) : (
+          <a href={settingsHref} className="font-medium text-primary hover:underline">
+            {editLabel}
+          </a>
+        )}
       </div>
       {budgets.map((budget) => {
         const period = customerBudgetPeriod(budget.budget_duration);
@@ -46,6 +60,13 @@ export default function CustomerBudgetSummary({
         </p>
       )}
       <CustomerRateLimitSummary limits={entity.rateLimits} />
+      {editing && organizationId && (
+        <CustomerOrganizationBudgetDialog
+          key={organizationId}
+          organizationId={organizationId}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </section>
   );
 }
