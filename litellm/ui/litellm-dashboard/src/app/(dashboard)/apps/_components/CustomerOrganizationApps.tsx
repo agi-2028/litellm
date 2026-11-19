@@ -218,7 +218,10 @@ function useOrganizationApps(organizationId: string) {
     })),
   });
   const groups = useAppBudgetGroups(
-    (apps.data ?? []).map((app, index) => associations[index]?.data?.tier_budget_id ?? app.default_tier_budget_id),
+    (apps.data ?? []).map(
+      (app, index) =>
+        associations[index]?.data?.budget_id ?? associations[index]?.data?.tier_budget_id ?? app.default_tier_budget_id,
+    ),
     resourceType !== null,
   );
   const resources = useQuery({
@@ -259,12 +262,12 @@ function OrganizationAppsTable({
   return (
     <AppBudgetTable scope="organization" usageLayout={usageLayout}>
       {rows.map(({ app, row }) => {
-        const profileId = row.tier_budget_id ?? app.default_tier_budget_id;
+        const profileId = row.budget_id ?? row.tier_budget_id ?? app.default_tier_budget_id;
         const profileName = groups.find((group) => group.budget_id === profileId)?.name;
         let sourceLabel = t("apps.appDefault");
-        if (row.budget_override_id) sourceLabel = t("customerPortal.organizationGroups.customBadge");
-        else if (row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
-        if (!row.budget_override_id && !row.tier_budget_id && profileName)
+        if (row.budget || row.budget_override_id) sourceLabel = t("customerPortal.organizationGroups.customBadge");
+        else if (row.budget_id || row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
+        if (!row.budget_override_id && !row.budget_id && !row.tier_budget_id && profileName)
           sourceLabel = `${profileName} · ${sourceLabel}`;
         const resource: AppResource = {
           resource_type: app.resource_type,
@@ -350,8 +353,8 @@ function OrganizationApp({
 }
 
 function organizationBudgetSource(row: AppOrganization | null): "inherit" | "profile" | "custom" {
-  if (row?.budget_override_id) return "custom";
-  if (row?.tier_budget_id) return "profile";
+  if (row?.budget || (row?.budget_override != null && row.budget_override_expires_at == null)) return "custom";
+  if (row?.budget_id || row?.tier_budget_id) return "profile";
   return "inherit";
 }
 
@@ -374,12 +377,11 @@ function OrganizationAppForm({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const groups = useAppBudgetGroups([row?.tier_budget_id]);
+  const groups = useAppBudgetGroups([row?.budget_id ?? row?.tier_budget_id]);
   const [source, setSource] = useState(() => organizationBudgetSource(row));
-  const [profile, setProfile] = useState(row?.tier_budget_id ?? "");
-  const [override, setOverride] = useState(() =>
-    compactBudgetEditorFields(row?.budget_override_id ? row.effective_budget : null),
-  );
+  const original = row?.budget ?? (row?.budget_override_expires_at == null ? row?.budget_override : null);
+  const [profile, setProfile] = useState(row?.budget_id ?? row?.tier_budget_id ?? "");
+  const [override, setOverride] = useState(() => compactBudgetEditorFields(original));
   const [member, setMember] = useState(() =>
     compactBudgetEditorFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
   );
@@ -401,7 +403,7 @@ function OrganizationAppForm({
     if (pending || profileUnavailable) return;
     const budget = compactBudgetEditorValue(
       { ...override, budgetEnabled: source === "custom" },
-      row?.budget_override_id ? row.effective_budget : null,
+      original,
     );
     const memberBudget = compactBudgetEditorValue(
       member,
@@ -424,8 +426,8 @@ function OrganizationAppForm({
       await fetchClient.PUT("/management/v1/apps/{app_id}/customer_organizations/{customer_org_id}", {
         params: { path: { app_id: appId, customer_org_id: organizationId } },
         body: {
-          tier_budget_id: source === "profile" ? profile : null,
-          budget_override: budget.value,
+          ...(source === "custom" ? { budget: budget.value } : { budget_id: source === "profile" ? profile : null }),
+          ...(row?.budget_override != null && row.budget_override_expires_at == null ? { budget_override: null } : {}),
           customer_member_budget: memberBudget.value,
         },
       });
@@ -468,7 +470,7 @@ function OrganizationAppForm({
         {source === "custom" && (
           <CustomerBudgetCompactFields
             fields={override}
-            original={row?.budget_override_id ? row.effective_budget : null}
+            original={original}
             onChange={setOverride}
             disabled={pending}
             id="org-app-override"

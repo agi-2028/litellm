@@ -19,6 +19,7 @@ import AppBudgetLimits from "./AppBudgetLimits";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 
 const BUDGET_SOURCES = {
+  member_budget: "apps.customBudget",
   member_override: "apps.memberOverride",
   customer_default: "apps.inheritedCustomer",
   app_default: "apps.inheritedApp",
@@ -165,7 +166,7 @@ function MemberBudgetForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const original = row.budget_override_id ? row.effective_budget : null;
+  const original = row.budget ?? (row.budget_override_expires_at == null ? row.budget_override : null);
   const [fields, setFields] = useState(() => compactBudgetEditorFields(original));
   const { pending, error, setError, run } = useCustomerBudgetSave();
   const save = async (event: FormEvent) => {
@@ -179,7 +180,10 @@ function MemberBudgetForm({
     await run(async () => {
       await fetchClient.PUT("/management/v1/apps/{app_id}/customer_members/{customer_member_id}", {
         params: { path: { app_id: app.app_id, customer_member_id: row.customer_member_id } },
-        body: { budget_override: budget.value },
+        body: {
+          budget: budget.value,
+          ...(row.budget_override != null && row.budget_override_expires_at == null ? { budget_override: null } : {}),
+        },
       });
       await onSaved();
     });

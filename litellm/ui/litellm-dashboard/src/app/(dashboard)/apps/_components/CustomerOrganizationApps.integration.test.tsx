@@ -43,12 +43,14 @@ let bound: boolean;
 let assigned: boolean;
 let requests: Request[];
 let associationStatus: number;
+let customAssociation: object | null;
 
 beforeEach(() => {
   configured = true;
   bound = false;
   assigned = false;
   associationStatus = 404;
+  customAssociation = null;
   requests = [];
   testQueryClient.clear();
   registerBaseUrlGetter(() => "http://localhost");
@@ -88,7 +90,9 @@ beforeEach(() => {
       return json({ app_id: app.app_id, customer_org_id: "org-1", spend: 0 });
     }
     if (path.endsWith("/customer_organizations/org-1"))
-      return assigned ? json(assignedBudget) : json({ detail: "Association unavailable" }, associationStatus);
+      return assigned
+        ? json(customAssociation ?? assignedBudget)
+        : json({ detail: "Association unavailable" }, associationStatus);
     if (path.endsWith("/models")) return json({ data: [] });
     throw new Error(`Unexpected request ${path}`);
   });
@@ -199,8 +203,7 @@ describe("customer app budgets", () => {
     await user.click(save);
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
-      tier_budget_id: "org-standard",
-      budget_override: null,
+      budget_id: "org-standard",
       customer_member_budget: null,
     });
   });
@@ -278,8 +281,7 @@ describe("customer app budgets", () => {
     expect(await mutations[0].json()).toEqual({ resource_id: "team-chat", resource_type: "team" });
     expect(new URL(mutations[1].url).pathname).toBe("/management/v1/apps/app-chat/customer_organizations/org-1");
     expect(await mutations[1].json()).toMatchObject({
-      tier_budget_id: "standard",
-      budget_override: null,
+      budget_id: "standard",
       customer_member_budget: {
         max_budget: 20,
         budget_duration: "1mo",
@@ -328,8 +330,7 @@ describe("customer app budgets", () => {
     await user.click(screen.getByRole("button", { name: "Save app budget" }));
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     expect(await requests.find((request) => request.method === "PUT")!.json()).toMatchObject({
-      tier_budget_id: null,
-      budget_override: {
+      budget: {
         max_budget: 100,
         budget_duration: "1mo",
         budget_limits: [{ budget_duration: "12mo", max_budget: 1000 }],
@@ -349,6 +350,7 @@ describe("customer app budgets", () => {
       ...assignedBudget,
       tier_budget_id: null,
       budget_override_id: "custom-budget",
+      budget_override: assignedBudget.effective_budget,
       customer_member_budget_id: "member-budget",
       effective_customer_member_budget: { max_budget: 20, budget_duration: "1mo", rpm_limit: 60 },
     };
@@ -374,11 +376,49 @@ describe("customer app budgets", () => {
     await user.click(screen.getByRole("button", { name: "Save app budget" }));
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
     expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
-      tier_budget_id: "standard",
+      budget_id: "standard",
       budget_override: null,
       customer_member_budget: null,
     });
   });
+
+  it.each(["custom", "legacy", "temporary"])(
+    "should save a private org budget and preserve temporary overrides %s",
+    async (source) => {
+      bound = true;
+      assigned = true;
+      const legacy = source === "legacy";
+      const temporary = source === "temporary";
+      customAssociation = {
+        ...assignedBudget,
+        budget_id: legacy ? null : "private",
+        budget: legacy ? null : { max_budget: 5, budget_duration: "1mo" },
+        budget_override: legacy || temporary ? { max_budget: legacy ? 5 : 20, budget_duration: "1mo" } : null,
+        budget_override_id: legacy || temporary ? "override" : null,
+        budget_override_expires_at: temporary ? "2027-01-01T00:00:00Z" : null,
+      };
+      const user = userEvent.setup();
+      render(<CustomerOrganizationApps organizationId="org-1" />);
+      await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
+      expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(5);
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "7" } });
+      await user.click(screen.getByRole("button", { name: "Save app budget" }));
+      await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+      expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
+        budget: {
+          max_budget: 7,
+          soft_budget: null,
+          tpm_limit: null,
+          rpm_limit: null,
+          budget_duration: "1mo",
+          allowed_models: null,
+          budget_limits: null,
+        },
+        customer_member_budget: null,
+        ...(legacy ? { budget_override: null } : {}),
+      });
+    },
+  );
 
   it("should keep association read failures visible instead of overwriting an unknown budget", async () => {
     bound = true;

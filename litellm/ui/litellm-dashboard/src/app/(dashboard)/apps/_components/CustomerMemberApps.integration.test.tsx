@@ -94,7 +94,7 @@ describe("customer member apps", () => {
     expect(onAppSelect).toHaveBeenCalledExactlyOnceWith(app.app_id);
   });
 
-  it("should show a compact member budget row and save an app-specific override", async () => {
+  it("should show a compact member budget row and save an app-specific permanent budget", async () => {
     const requests: Request[] = [];
     fetchMock.mockImplementation(async (input) => {
       const request = input as Request;
@@ -133,7 +133,7 @@ describe("customer member apps", () => {
     const request = requests.find((row) => row.method === "PUT");
     expect(new URL(request!.url).pathname).toBe("/management/v1/apps/app-1/customer_members/member-1");
     expect(await request?.json()).toMatchObject({
-      budget_override: {
+      budget: {
         max_budget: 5,
         budget_duration: "1mo",
         budget_limits: [{ max_budget: 50, budget_duration: "12mo" }],
@@ -191,6 +191,7 @@ describe("customer member apps", () => {
               customer_member_id: "member-1",
               spend: 0,
               budget_override_id: "override-1",
+              budget_override: { max_budget: 5 },
               budget_source: "member_override",
               effective_budget: { max_budget: 5 },
             },
@@ -206,8 +207,53 @@ describe("customer member apps", () => {
     );
     await user.click(screen.getByRole("button", { name: "Save member app budget" }));
     await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
-    expect(await requests.find((row) => row.method === "PUT")?.json()).toEqual({ budget_override: null });
+    expect(await requests.find((row) => row.method === "PUT")?.json()).toEqual({ budget: null, budget_override: null });
   });
+
+  it.each(["custom", "legacy", "temporary"])(
+    "should initialize and save a permanent budget while an increase is present %s",
+    async (source) => {
+      const legacy = source === "legacy";
+      const temporary = source === "temporary";
+      const requests: Request[] = [];
+      fetchMock.mockImplementation(async (input) => {
+        const request = input as Request;
+        requests.push(request.clone());
+        return json(
+          new URL(request.url).pathname.endsWith("/apps")
+            ? [app]
+            : {
+                app_id: "app-1",
+                customer_member_id: "member-1",
+                spend: 0,
+                budget: legacy ? null : { max_budget: 5, budget_duration: "1mo" },
+                budget_override: legacy || temporary ? { max_budget: legacy ? 5 : 20, budget_duration: "1mo" } : null,
+                budget_override_expires_at: temporary ? "2027-01-01T00:00:00Z" : null,
+                effective_budget: { max_budget: 20 },
+              },
+        );
+      });
+      const user = userEvent.setup();
+      render(<CustomerMemberApps memberId="member-1" />);
+      await user.click(await screen.findByRole("button", { name: "Edit member budget for Assistant" }));
+      expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(5);
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "7" } });
+      await user.click(screen.getByRole("button", { name: "Save member app budget" }));
+      await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+      expect(await requests.find((request) => request.method === "PUT")?.json()).toEqual({
+        budget: {
+          max_budget: 7,
+          soft_budget: null,
+          tpm_limit: null,
+          rpm_limit: null,
+          budget_duration: "1mo",
+          allowed_models: null,
+          budget_limits: null,
+        },
+        ...(legacy ? { budget_override: null } : {}),
+      });
+    },
+  );
 
   it("should not enable overwriting a member budget after a read failure", async () => {
     fetchMock.mockImplementation(async (input) =>

@@ -28475,6 +28475,12 @@ export interface components {
         AppMember: {
             /** App Id */
             app_id: string;
+            budget?: components["schemas"]["Budget"] | null;
+            /** Budget Id */
+            budget_id?: string | null;
+            budget_override?: components["schemas"]["Budget"] | null;
+            /** Budget Override Expires At */
+            budget_override_expires_at?: string | null;
             /** Budget Override Id */
             budget_override_id?: string | null;
             /** @default none */
@@ -28499,15 +28505,25 @@ export interface components {
          * AppMemberBudgetSource
          * @enum {string}
          */
-        AppMemberBudgetSource: "member_override" | "customer_default" | "app_default" | "none";
+        AppMemberBudgetSource: "member_budget" | "member_override" | "customer_default" | "app_default" | "none";
         /** AppMemberPut */
         AppMemberPut: {
+            /** @description Permanent budget for this app and customer member. Copies inherited policy on first edit. Explicit null fields clear limits. Null budget returns to inheritance. Independent of temporary increases. */
+            budget?: components["schemas"]["Budget"] | null;
             budget_override?: components["schemas"]["Budget"] | null;
+            /** Budget Override Expires At */
+            budget_override_expires_at?: string | null;
         };
         /** AppOrganization */
         AppOrganization: {
             /** App Id */
             app_id: string;
+            budget?: components["schemas"]["Budget"] | null;
+            /** Budget Id */
+            budget_id?: string | null;
+            budget_override?: components["schemas"]["Budget"] | null;
+            /** Budget Override Expires At */
+            budget_override_expires_at?: string | null;
             /** Budget Override Id */
             budget_override_id?: string | null;
             /**
@@ -28533,7 +28549,12 @@ export interface components {
         };
         /** AppOrganizationPut */
         AppOrganizationPut: {
+            budget?: components["schemas"]["Budget"] | null;
+            /** Budget Id */
+            budget_id?: string | null;
             budget_override?: components["schemas"]["Budget"] | null;
+            /** Budget Override Expires At */
+            budget_override_expires_at?: string | null;
             customer_member_budget?: components["schemas"]["Budget"] | null;
             /** Tier Budget Id */
             tier_budget_id?: string | null;
