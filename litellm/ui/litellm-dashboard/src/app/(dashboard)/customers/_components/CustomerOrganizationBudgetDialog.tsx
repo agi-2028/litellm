@@ -7,15 +7,7 @@ import { toast } from "sonner";
 import { $api, fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { CustomerBudgetDialog, CustomerBudgetForm } from "./CustomerBudgetDialog";
 import CustomerOrganizationBudgetFields from "./CustomerOrganizationBudgetFields";
 import {
   buildCustomerHierarchyPatch,
@@ -79,36 +71,23 @@ function BudgetForm({
     }
   };
   return (
-    <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void save(event)}>
-      <div className="min-h-0 overflow-y-auto px-6 py-6">
-        <fieldset disabled={pending} className="min-w-0">
-          <CustomerOrganizationBudgetFields
-            organization={organization}
-            fields={fields}
-            onChange={(key, value) => {
-              setFields((current) => ({ ...current, [key]: value }));
-              setError(null);
-            }}
-            idPrefix="edit-org-budget"
-          />
-        </fieldset>
-      </div>
-      <div className="shrink-0 border-t bg-muted/20 px-6 py-4">
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
-            {t("customerPortal.common.cancel")}
-          </Button>
-          <Button type="submit" disabled={pending || !dirty}>
-            {t(pending ? "customerPortal.hierarchy.saving" : "customerPortal.hierarchy.save")}
-          </Button>
-        </DialogFooter>
-      </div>
-    </form>
+    <CustomerBudgetForm
+      pending={pending}
+      error={error}
+      dirty={dirty}
+      onSubmit={(event) => void save(event)}
+      onClose={onClose}
+    >
+      <CustomerOrganizationBudgetFields
+        organization={organization}
+        fields={fields}
+        onChange={(key, value) => {
+          setFields((current) => ({ ...current, [key]: value }));
+          setError(null);
+        }}
+        idPrefix="edit-org-budget"
+      />
+    </CustomerBudgetForm>
   );
 }
 
@@ -125,27 +104,23 @@ export default function CustomerOrganizationBudgetDialog({
     params: { path: { customer_org_id: organizationId } },
   });
   return (
-    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent
-        className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-        showCloseButton={!pending}
-      >
-        <DialogHeader className="shrink-0 border-b px-6 py-5">
-          <DialogTitle className="text-xl">{t("customerPortal.budgetEditor.title")}</DialogTitle>
-          <DialogDescription>{organization.data?.alias || organizationId}</DialogDescription>
-        </DialogHeader>
-        {organization.isPending && <p className="p-6">{t("customerPortal.common.loading")}</p>}
-        {organization.isError && <ErrorState onRetry={() => void organization.refetch()} />}
-        {organization.data && (
-          <BudgetForm
-            key={organization.data.updated_at}
-            organization={organization.data}
-            pending={pending}
-            onPendingChange={setPending}
-            onClose={onClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <CustomerBudgetDialog
+      title={t("customerPortal.budgetEditor.title")}
+      description={organization.data?.alias || organizationId}
+      pending={pending}
+      onClose={onClose}
+    >
+      {organization.isPending && <p className="p-6">{t("customerPortal.common.loading")}</p>}
+      {organization.isError && <ErrorState onRetry={() => void organization.refetch()} />}
+      {organization.data && (
+        <BudgetForm
+          key={organization.data.updated_at}
+          organization={organization.data}
+          pending={pending}
+          onPendingChange={setPending}
+          onClose={onClose}
+        />
+      )}
+    </CustomerBudgetDialog>
   );
 }

@@ -7,19 +7,11 @@ import { toast } from "sonner";
 import { $api, fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import AppBudgetCompactFields from "../../apps/_components/AppBudgetCompactFields";
 import { compactAppBudgetFields, compactAppBudgetValue } from "../../apps/_components/appForms";
+import { CustomerBudgetDialog, CustomerBudgetForm } from "./CustomerBudgetDialog";
 import { CustomerBudgetSourceSelect } from "./CustomerLimitsFields";
 import { customerHierarchyFields, type Member, type Organization } from "./customerHierarchyForms";
 
@@ -90,56 +82,45 @@ function MemberBudgetForm({
     }
   };
   return (
-    <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void save(event)}>
-      <fieldset disabled={pending} className="min-h-0 space-y-5 overflow-y-auto px-6 py-6">
-        <CustomerBudgetSourceSelect
-          profiles={organization.default_budgets}
-          value={source}
-          title={t("customerPortal.hierarchy.memberLimits")}
-          disabled={pending}
-          onChange={(value) => value && setSource(value)}
-        />
-        {source === "custom" && (
-          <>
-            <AppBudgetCompactFields
-              fields={fields}
-              original={member.budget_override}
-              onChange={setFields}
-              disabled={pending}
-              id="edit-member-budget"
+    <CustomerBudgetForm
+      pending={pending}
+      error={error}
+      dirty={dirty}
+      onSubmit={(event) => void save(event)}
+      onClose={onClose}
+    >
+      <CustomerBudgetSourceSelect
+        profiles={organization.default_budgets}
+        value={source}
+        title={t("customerPortal.hierarchy.memberLimits")}
+        disabled={pending}
+        onChange={(value) => value && setSource(value)}
+      />
+      {source === "custom" && (
+        <>
+          <AppBudgetCompactFields
+            fields={fields}
+            original={member.budget_override}
+            onChange={setFields}
+            disabled={pending}
+            id="edit-member-budget"
+          />
+          <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.memberBudgetHint")}</p>
+          <div className="space-y-2">
+            <Label htmlFor="edit-member-budget-expiry" className="font-normal text-muted-foreground">
+              {t("customerPortal.hierarchy.overrideExpiry")}
+            </Label>
+            <Input
+              id="edit-member-budget-expiry"
+              type="datetime-local"
+              value={expiry}
+              onChange={(event) => setExpiry(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.memberBudgetHint")}</p>
-            <div className="space-y-2">
-              <Label htmlFor="edit-member-budget-expiry" className="font-normal text-muted-foreground">
-                {t("customerPortal.hierarchy.overrideExpiry")}
-              </Label>
-              <Input
-                id="edit-member-budget-expiry"
-                type="datetime-local"
-                value={expiry}
-                onChange={(event) => setExpiry(event.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.overrideExpiryHint")}</p>
-            </div>
-          </>
-        )}
-      </fieldset>
-      <div className="shrink-0 border-t bg-muted/20 px-6 py-4">
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
-            {t("customerPortal.common.cancel")}
-          </Button>
-          <Button type="submit" disabled={pending || !dirty}>
-            {t(pending ? "customerPortal.hierarchy.saving" : "customerPortal.hierarchy.save")}
-          </Button>
-        </DialogFooter>
-      </div>
-    </form>
+            <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.overrideExpiryHint")}</p>
+          </div>
+        </>
+      )}
+    </CustomerBudgetForm>
   );
 }
 
@@ -161,30 +142,26 @@ export default function CustomerMemberBudgetDialog({
     params: { path: { customer_org_id: organizationId } },
   });
   return (
-    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent
-        className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-        showCloseButton={!pending}
-      >
-        <DialogHeader className="shrink-0 border-b px-6 py-5">
-          <DialogTitle className="text-xl">{t("customerPortal.budgetEditor.memberTitle")}</DialogTitle>
-          <DialogDescription>{member.data?.alias || memberId}</DialogDescription>
-        </DialogHeader>
-        {(member.isPending || organization.isPending) && <p className="p-6">{t("customerPortal.common.loading")}</p>}
-        {(member.isError || organization.isError) && (
-          <ErrorState onRetry={() => void Promise.all([member.refetch(), organization.refetch()])} />
-        )}
-        {member.data && organization.data && (
-          <MemberBudgetForm
-            key={member.data.updated_at}
-            member={member.data}
-            organization={organization.data}
-            pending={pending}
-            onPendingChange={setPending}
-            onClose={onClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <CustomerBudgetDialog
+      title={t("customerPortal.budgetEditor.memberTitle")}
+      description={member.data?.alias || memberId}
+      pending={pending}
+      onClose={onClose}
+    >
+      {(member.isPending || organization.isPending) && <p className="p-6">{t("customerPortal.common.loading")}</p>}
+      {(member.isError || organization.isError) && (
+        <ErrorState onRetry={() => void Promise.all([member.refetch(), organization.refetch()])} />
+      )}
+      {member.data && organization.data && (
+        <MemberBudgetForm
+          key={member.data.updated_at}
+          member={member.data}
+          organization={organization.data}
+          pending={pending}
+          onPendingChange={setPending}
+          onClose={onClose}
+        />
+      )}
+    </CustomerBudgetDialog>
   );
 }
