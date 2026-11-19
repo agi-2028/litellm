@@ -448,7 +448,11 @@ export default function CustomerHierarchyManager() {
         />
       )}
       {selected.member && (
-        <CustomerMemberApps key={selected.member.customer_member_id} memberId={selected.member.customer_member_id} />
+        <CustomerMemberApps
+          key={selected.member.customer_member_id}
+          memberId={selected.member.customer_member_id}
+          organizationId={selected.organization.customer_org_id}
+        />
       )}
       <CustomerHierarchyNavigation scope={currentScope} active={tab} />
       <section>

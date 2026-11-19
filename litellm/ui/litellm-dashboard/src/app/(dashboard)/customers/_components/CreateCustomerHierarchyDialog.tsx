@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { extractProxyErrorMessage } from "@/lib/http/client";
+import { useCustomerBudgetForm } from "./useCustomerBudgetForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "./CustomerBudgetDialog";
@@ -16,7 +16,6 @@ import {
   CUSTOMER_HIERARCHY_FORM_ERRORS,
   type CreatedCustomerHierarchyEntity,
   type CustomerHierarchyCreateTarget,
-  type CustomerHierarchyFields,
 } from "./customerHierarchyForms";
 
 type Props = CustomerHierarchyCreateTarget & {
@@ -25,15 +24,35 @@ type Props = CustomerHierarchyCreateTarget & {
   onCreated: (entity: CreatedCustomerHierarchyEntity) => void;
 };
 
-function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending: boolean) => void }) {
+function CreateForm(props: Props) {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const [fields, setFields] = useState(() => newCustomerHierarchyFields(props));
   const [identifier, setIdentifier] = useState("");
-  const { pending, onPendingChange: setPending } = props;
-  const [error, setError] = useState<string | null>(null);
-  const update = <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) =>
-    setFields((current) => ({ ...current, [key]: value }));
+  const form = useCustomerBudgetForm({
+    initial: newCustomerHierarchyFields(props),
+    parse: (fields) => {
+      const result = buildCustomerHierarchyCreate(props, fields, identifier);
+      return result.ok
+        ? { ok: true, value: result.create }
+        : { ok: false, error: t(CUSTOMER_HIERARCHY_FORM_ERRORS[result.error]) };
+    },
+    write: async (create): Promise<void> => {
+      try {
+        const created = await createCustomerHierarchyEntity(create);
+        if (!created) return form.setError(t("customerPortal.hierarchy.createFailed"));
+        toast.success(
+          t("customerPortal.hierarchy.created", {
+            kind: t(props.kind === "team" ? "customerPortal.hierarchy.team" : "customerPortal.hierarchy.member"),
+          }),
+        );
+        props.onOpenChange(false);
+        props.onCreated(created);
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: ["get", "/management/v1/customer_portal/limits"] });
+      }
+    },
+  });
+  const { fields, setFields, update, pending, error, save } = form;
   const title = t(
     props.kind === "team" ? "customerPortal.hierarchy.createTeam" : "customerPortal.hierarchy.createMember",
   );
@@ -49,36 +68,6 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
         },
       );
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const result = buildCustomerHierarchyCreate(props, fields, identifier);
-    if (!result.ok) {
-      setError(t(CUSTOMER_HIERARCHY_FORM_ERRORS[result.error]));
-      return;
-    }
-    setPending(true);
-    setError(null);
-    try {
-      const created = await createCustomerHierarchyEntity(result.create);
-      if (!created) {
-        setError(t("customerPortal.hierarchy.createFailed"));
-        return;
-      }
-      toast.success(
-        t("customerPortal.hierarchy.created", {
-          kind: t(props.kind === "team" ? "customerPortal.hierarchy.team" : "customerPortal.hierarchy.member"),
-        }),
-      );
-      props.onOpenChange(false);
-      props.onCreated(created);
-    } catch (cause) {
-      setError(extractProxyErrorMessage(cause));
-    } finally {
-      void queryClient.invalidateQueries({ queryKey: ["get", "/management/v1/customer_portal/limits"] });
-      setPending(false);
-    }
-  };
-
   return (
     <CustomerBudgetDialog
       title={title}
@@ -90,7 +79,7 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
       <CustomerBudgetForm
         pending={pending}
         error={error}
-        onSubmit={(event) => void submit(event)}
+        onSubmit={save}
         onClose={() => props.onOpenChange(false)}
         saveLabel={t(pending ? "customerPortal.hierarchy.creating" : "customerPortal.hierarchy.create")}
       >
@@ -157,12 +146,9 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
 }
 
 export default function CreateCustomerHierarchyDialog(props: Props) {
-  const [pending, setPending] = useState(false);
   const parent =
     props.kind === "team"
       ? props.organization.customer_org_id
       : props.team?.customer_team_id ?? props.organization.customer_org_id;
-  return props.open ? (
-    <CreateForm key={`${props.kind}:${parent}`} {...props} pending={pending} onPendingChange={setPending} />
-  ) : null;
+  return props.open ? <CreateForm key={`${props.kind}:${parent}`} {...props} /> : null;
 }

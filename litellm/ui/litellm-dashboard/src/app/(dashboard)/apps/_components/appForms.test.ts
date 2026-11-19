@@ -5,6 +5,7 @@ import {
   compactBudgetEditorValue,
   budgetPeriodAmount,
   updateBudgetPeriod,
+  permanentBudgetEditorValue,
 } from "../../customers/_components/customerBudgetForm";
 import { describe, expect, it } from "vitest";
 import { appSurchargeField, appSurchargeValue } from "./appForms";
@@ -160,5 +161,38 @@ describe("app surcharge form", () => {
     [undefined, ""],
   ])("should show the stored fraction %s as %s percent", (margin, text) => {
     expect(appSurchargeField(margin)).toBe(text);
+  });
+});
+
+describe("permanent budget patches", () => {
+  const preset = {
+    max_budget: 500,
+    budget_duration: "1mo",
+    tpm_limit: 10000,
+    rpm_limit: 50,
+    allowed_models: ["test-model"],
+    model_tpm_limit: { "test-model": 1000 },
+    budget_limits: [{ budget_duration: "12mo", max_budget: 5000, reset_at: "2027-01-01T00:00:00Z" }],
+  };
+  it("changes only the edited cap so backend snapshots retain untouched preset settings", () => {
+    const fields = updateBudgetPeriod(compactBudgetEditorFields(preset), "1mo", "750");
+    expect(permanentBudgetEditorValue(fields, preset)).toEqual({
+      ok: true,
+      value: { max_budget: 750, budget_duration: "1mo" },
+    });
+  });
+  it("distinguishes unchanged blank values from explicit clears, including zero", () => {
+    expect(permanentBudgetEditorValue({ ...compactBudgetEditorFields(preset), tpm: "", rpm: "0" }, preset)).toEqual({
+      ok: true,
+      value: { tpm_limit: null, rpm_limit: 0 },
+    });
+    expect(permanentBudgetEditorValue({ ...compactBudgetEditorFields(null), budgetEnabled: true }, null)).toEqual({
+      ok: true,
+      value: {},
+    });
+  });
+  it("clears a yearly cap intentionally without clearing model or rate policy", () => {
+    const fields = updateBudgetPeriod(compactBudgetEditorFields(preset), "12mo", "");
+    expect(permanentBudgetEditorValue(fields, preset)).toEqual({ ok: true, value: { budget_limits: null } });
   });
 });

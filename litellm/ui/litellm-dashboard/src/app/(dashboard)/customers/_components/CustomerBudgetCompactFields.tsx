@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 import { Label } from "@/components/ui/label";
-import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
+import { CustomerBudgetAdvancedFields } from "./CustomerBudgetFields";
 import type { Budget } from "./customerBudgetForm";
 import CustomerBudgetWindows from "./CustomerBudgetWindows";
-import { CustomerRateLimitInput, rateFields } from "./CustomerRateLimits";
+import { CustomerRateLimitControls } from "./CustomerRateLimits";
 
 export default function CustomerBudgetCompactFields({
   fields,
@@ -42,19 +42,13 @@ export default function CustomerBudgetCompactFields({
             />
           </div>
         ))}
-        {rateFields.map((field) => (
-          <div key={field} className="min-w-0 space-y-2">
-            <Label htmlFor={`${id}-${field}`} className="font-normal text-muted-foreground">
-              {t(`customerPortal.hierarchy.${field}`)}
-            </Label>
-            <CustomerRateLimitInput
-              id={`${id}-${field}`}
-              disabled={disabled}
-              value={fields[field]}
-              onChange={(event) => onChange({ ...fields, [field]: event.target.value })}
-            />
-          </div>
-        ))}
+        <CustomerRateLimitControls
+          id={id}
+          tpm={fields.tpm}
+          rpm={fields.rpm}
+          disabled={disabled}
+          onChange={(key, value) => onChange({ ...fields, [key]: value })}
+        />
       </div>
       {hasOtherSpendLimit && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -94,31 +88,12 @@ export default function CustomerBudgetCompactFields({
             windows={fields.budgetWindows}
             onChange={(budgetWindows) => onChange({ ...fields, budgetWindows })}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${id}-soft`} className="font-normal text-muted-foreground">
-                {t("customerPortal.hierarchy.softBudget")}
-              </Label>
-              <Input
-                id={`${id}-soft`}
-                type="number"
-                min={0}
-                step="any"
-                value={fields.softBudget}
-                onChange={(event) => onChange({ ...fields, softBudget: event.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-models`} className="font-normal text-muted-foreground">
-              {t("customerPortal.hierarchy.allowedModels")}
-            </Label>
-            <CustomerAllowedModelsSelect
-              id={`${id}-models`}
-              value={fields.allowedModels}
-              onChange={(allowedModels) => onChange({ ...fields, allowedModels })}
-            />
-          </div>
+          <CustomerBudgetAdvancedFields
+            idPrefix={id}
+            fields={fields}
+            disabled={disabled}
+            onChange={(key, value) => onChange({ ...fields, [key]: value })}
+          />
         </div>
       </details>
     </div>

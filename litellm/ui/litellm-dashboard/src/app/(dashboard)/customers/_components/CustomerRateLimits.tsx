@@ -6,43 +6,59 @@ import type { components } from "@/lib/http/schema";
 
 export const rateFields = ["tpm", "rpm"] as const;
 
-export function CustomerRateLimitInput(props: ComponentProps<typeof Input>) {
+export function CustomerRateLimitInput({ placeholder, ...props }: ComponentProps<typeof Input>) {
   const { t } = useTranslation();
-  return <Input type="number" min={0} step={1} placeholder={t("customerPortal.createDialog.noLimit")} {...props} />;
+  return (
+    <Input
+      type="number"
+      min={0}
+      step={1}
+      placeholder={placeholder ?? t("customerPortal.createDialog.noLimit")}
+      {...props}
+    />
+  );
 }
 
 export type CustomerRateLimits = Pick<components["schemas"]["Budget"], "tpm_limit" | "rpm_limit">;
 
-const hasCustomerRateLimits = (limits?: CustomerRateLimits | null): boolean =>
-  [limits?.tpm_limit, limits?.rpm_limit].some((limit) => limit != null);
-
-export function CustomerRateLimitFields({
-  id,
-  tpm,
-  rpm,
-  onChange,
-}: {
+interface RateFieldsProps {
   id: string;
   tpm: string;
   rpm: string;
+  disabled?: boolean;
+  placeholder?: string;
   onChange: (field: "tpm" | "rpm", value: string) => void;
-}) {
+}
+
+export function CustomerRateLimitControls({ id, tpm, rpm, disabled, placeholder, onChange }: RateFieldsProps) {
   const { t } = useTranslation();
   const values = { tpm, rpm };
+  return rateFields.map((field) => (
+    <div key={field} className="min-w-0 space-y-2">
+      <Label htmlFor={`${id}-${field}`} className="font-normal text-muted-foreground">
+        {t(`customerPortal.hierarchy.${field}`)}
+      </Label>
+      <CustomerRateLimitInput
+        id={`${id}-${field}`}
+        disabled={disabled}
+        placeholder={placeholder}
+        value={values[field]}
+        onChange={(event) => onChange(field, event.target.value)}
+      />
+    </div>
+  ));
+}
+
+const hasCustomerRateLimits = (limits?: CustomerRateLimits | null): boolean =>
+  [limits?.tpm_limit, limits?.rpm_limit].some((limit) => limit != null);
+
+export function CustomerRateLimitFields(props: RateFieldsProps) {
+  const { t } = useTranslation();
   return (
     <fieldset className="min-w-0 space-y-2">
       <legend className="text-sm font-medium">{t("customerPortal.rateLimits.title")}</legend>
       <div className="grid gap-3 sm:grid-cols-2">
-        {rateFields.map((field) => (
-          <div key={field} className="min-w-0 space-y-1.5">
-            <Label htmlFor={`${id}-${field}`}>{t(`customerPortal.hierarchy.${field}`)}</Label>
-            <CustomerRateLimitInput
-              id={`${id}-${field}`}
-              value={values[field]}
-              onChange={(event) => onChange(field, event.target.value)}
-            />
-          </div>
-        ))}
+        <CustomerRateLimitControls {...props} />
       </div>
       <p className="text-xs text-muted-foreground">{t("customerPortal.rateLimits.hint")}</p>
     </fieldset>

@@ -1,6 +1,21 @@
 import type { components } from "@/lib/http/schema";
 
 export type Budget = components["schemas"]["Budget"];
+const budgetKeys = [
+  "max_budget",
+  "soft_budget",
+  "budget_duration",
+  "budget_limits",
+  "tpm_limit",
+  "rpm_limit",
+  "allowed_models",
+  "model_tpm_limit",
+  "model_rpm_limit",
+  "cap_policy",
+] as const satisfies readonly (keyof Budget)[];
+
+export const budgetSettings = (budget?: Budget | null): Budget =>
+  Object.fromEntries(budgetKeys.filter((key) => budget?.[key] !== undefined).map((key) => [key, budget![key]]));
 export interface BudgetFields {
   maxBudget: string;
   softBudget: string;
@@ -74,7 +89,10 @@ export const budgetEditorValue = (fields: BudgetEditorFields, original?: Budget 
       return { ok: false, error: "customerPortal.hierarchy.invalidNumber" } as const;
     windows.push({ ...window.budget, max_budget: parsedWindow.max_budget });
   }
-  return { ok: true, value: { ...original, ...parsed, budget_limits: windows.length ? windows : null } } as const;
+  return {
+    ok: true,
+    value: { ...budgetSettings(original), ...parsed, budget_limits: windows.length ? windows : null },
+  } as const;
 };
 
 export const compactBudgetEditorFields = (budget?: Budget | null): BudgetEditorFields => ({
@@ -123,3 +141,22 @@ export const compactBudgetEditorValue = (fields: BudgetEditorFields, original?: 
     { ...fields, budgetWindows: fields.budgetWindows.filter((window) => window.maxBudget.trim() !== "") },
     original,
   );
+
+export const permanentBudgetEditorValue = (fields: BudgetEditorFields, original?: Budget | null) => {
+  const parsed = compactBudgetEditorValue(fields);
+  if (!parsed.ok || parsed.value === null) return parsed;
+  const initial = compactBudgetEditorValue({ ...compactBudgetEditorFields(original), budgetEnabled: true });
+  if (!initial.ok || !initial.value) return parsed;
+  const changed = Object.fromEntries(
+    Object.entries(parsed.value).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(initial.value[key as keyof Budget]),
+    ),
+  ) as Budget;
+  return {
+    ok: true,
+    value: {
+      ...changed,
+      ...(changed.max_budget != null ? { budget_duration: parsed.value.budget_duration } : {}),
+    },
+  } as const;
+};

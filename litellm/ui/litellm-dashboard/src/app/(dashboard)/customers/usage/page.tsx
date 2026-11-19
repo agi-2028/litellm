@@ -132,6 +132,7 @@ export default function CustomerHierarchyUsagePage() {
           )}
           {scope.member && (
             <CustomerMemberApps
+              organizationId={scope.org!}
               key={scope.member}
               memberId={scope.member}
               usageContext={appUsageContext}

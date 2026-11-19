@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { $api } from "@/lib/http/api";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { CustomerBudgetSourceSelect, CustomerCustomBudgetFields } from "./CustomerLimitsFields";
+import { CustomerBudgetEditor } from "./CustomerLimitsFields";
+import { CustomerBudgetFields } from "./CustomerBudgetFields";
 import {
   BUDGET_FIELDS,
   customerHierarchyFields,
@@ -50,24 +51,23 @@ export default function CustomerOrganizationBudgetFields({
     onChange("templateId", profile.budget_id);
   };
   return (
-    <section className="space-y-4" aria-labelledby={`${idPrefix}-limits-heading`}>
-      <div className="space-y-1">
-        <h3 id={`${idPrefix}-limits-heading`} className="font-semibold">
-          {t("customerPortal.createDialog.organizationLimits")}
-        </h3>
-        <p className="text-sm text-muted-foreground">{t("customerPortal.createDialog.organizationLimitsHelp")}</p>
-      </div>
-      <CustomerBudgetSourceSelect
-        profiles={profiles}
-        value={usingGroup ? `profile:${fields.templateId}` : "custom"}
-        onChange={selectSource}
-        title={t("customerPortal.createDialog.organizationLimits")}
-        disabled={!budgetReady}
-        loading={groups.isPending}
-      />
-      {groups.isError && <ErrorState onRetry={() => void groups.refetch()} />}
-      {budgetReady && !usingGroup && (
-        <CustomerCustomBudgetFields
+    <CustomerBudgetEditor
+      id={idPrefix}
+      title={t("customerPortal.createDialog.organizationLimits")}
+      description={t("customerPortal.createDialog.organizationLimitsHelp")}
+      source={{
+        profiles,
+        value: usingGroup ? `profile:${fields.templateId}` : "custom",
+        onChange: selectSource,
+        title: t("customerPortal.createDialog.organizationLimits"),
+        disabled: !budgetReady,
+        loading: groups.isPending,
+      }}
+      error={groups.isError && <ErrorState onRetry={() => void groups.refetch()} />}
+    >
+      {budgetReady && (
+        <CustomerBudgetFields
+          layout="scalar"
           fields={{
             ...fields,
             maxBudget: fields.budgetEnabled ? fields.maxBudget : "",
@@ -80,6 +80,6 @@ export default function CustomerOrganizationBudgetFields({
           onChange={updateCustom}
         />
       )}
-    </section>
+    </CustomerBudgetEditor>
   );
 }

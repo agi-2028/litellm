@@ -1,13 +1,10 @@
 import { useTranslation } from "react-i18next";
-import type { ReactNode } from "react";
-import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
-import CustomerBudgetPeriodSelect from "./CustomerBudgetPeriodSelect";
-import { CustomerRateLimitInput, rateFields } from "./CustomerRateLimits";
-import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
-import { Label } from "@/components/ui/label";
+import { Fragment, type ComponentProps, type ReactNode } from "react";
+import { CustomerBudgetLimitFields } from "./CustomerBudgetFields";
+import { rateFields } from "./CustomerRateLimits";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { customerBudgetPeriod } from "./customerBudgetUsage";
-import type { BudgetFields, Organization } from "./customerHierarchyForms";
+import type { Organization } from "./customerHierarchyForms";
 import type { CustomerOrganizationFields } from "./customerOrganizationForm";
 
 export type CustomerLimits = Pick<
@@ -90,10 +87,10 @@ export function CustomerBudgetSourceSelect({
     summary: t("customerPortal.hierarchy.noTemplateHelp"),
   };
   const options = [
-    ...profileOptions,
-    customOption,
-    ...(noTemplate ? [noTemplateOption] : []),
     ...(inheritedOption ? [{ ...inheritedOption, value: "inherit" }] : []),
+    ...profileOptions,
+    ...(noTemplate ? [noTemplateOption] : []),
+    customOption,
   ];
   const selection =
     options.find((option) => option.value === value) ??
@@ -108,179 +105,63 @@ export function CustomerBudgetSourceSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent className="p-1">
-        {inheritedOption && (
-          <SelectItem value="inherit" className="py-3">
-            <LimitOptionContent label={inheritedOption.label} summary={inheritedOption.summary} />
-          </SelectItem>
-        )}
         {loading && (
           <SelectItem value="loading" disabled>
             {t("customerPortal.common.loading")}
           </SelectItem>
         )}
-        {profileOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value} label={option.label} className="py-3">
-            <LimitOptionContent label={option.label} summary={option.summary} />
-          </SelectItem>
+        {options.map((option) => (
+          <Fragment key={option.value}>
+            {option.value === "custom" && profileOptions.length > 0 && <SelectSeparator />}
+            <SelectItem
+              value={option.value}
+              label={option.value === "custom" ? t("customerPortal.createDialog.enterCustomLimits") : option.label}
+              className="py-3"
+            >
+              {option.value === "custom" ? (
+                t("customerPortal.createDialog.enterCustomLimits")
+              ) : (
+                <LimitOptionContent label={option.label} summary={option.summary} />
+              )}
+            </SelectItem>
+          </Fragment>
         ))}
-        {profileOptions.length > 0 && <SelectSeparator />}
-        {noTemplate && (
-          <SelectItem value="none" label={t("customerPortal.hierarchy.noTemplate")} className="py-3">
-            <LimitOptionContent
-              label={t("customerPortal.hierarchy.noTemplate")}
-              summary={t("customerPortal.hierarchy.noTemplateHelp")}
-            />
-          </SelectItem>
-        )}
-        <SelectItem
-          value={customOption.value}
-          label={t("customerPortal.createDialog.enterCustomLimits")}
-          className="py-3"
-        >
-          {t("customerPortal.createDialog.enterCustomLimits")}
-        </SelectItem>
       </SelectContent>
     </Select>
   );
 }
 
-type CustomerLimitValues = Pick<CustomerLimits, "budgetAmount" | "budgetDuration" | "tpm" | "rpm">;
-
-export function CustomerCustomLimitFields({
-  fields,
-  onChange,
-  disabled,
-  idPrefix,
-  inheritBlank = false,
-  periodControl,
-}: {
-  fields: CustomerLimitValues;
-  onChange: (patch: Partial<CustomerLimitValues>) => void;
-  disabled: boolean;
-  idPrefix: string;
-  inheritBlank?: boolean;
-  periodControl?: ReactNode;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="grid gap-4 sm:grid-cols-[1.5fr_1fr_1fr]">
-      <div className="min-w-0 space-y-2">
-        <Label htmlFor={`${idPrefix}-budget`} className="font-normal text-muted-foreground">
-          {t("customerPortal.createDialog.budget")}
-        </Label>
-        <CustomerBudgetAmountInput
-          id={`${idPrefix}-budget`}
-          label={t("customerPortal.createDialog.spendLimitLabel")}
-          disabled={disabled}
-          placeholder={t(
-            inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
-          )}
-          value={fields.budgetAmount}
-          onChange={(budgetAmount) => onChange({ budgetAmount })}
-        >
-          {periodControl ?? (
-            <CustomerBudgetPeriodSelect
-              value={fields.budgetDuration}
-              disabled={disabled}
-              standardOnly
-              onChange={(budgetDuration) => {
-                if (budgetDuration === "1mo" || budgetDuration === "12mo") onChange({ budgetDuration });
-              }}
-            />
-          )}
-        </CustomerBudgetAmountInput>
-      </div>
-      {rateFields.map((field) => (
-        <div key={field} className="min-w-0 space-y-2">
-          <Label htmlFor={`${idPrefix}-${field}`} className="font-normal text-muted-foreground">
-            {t(`customerPortal.createDialog.${field}Short`)}
-          </Label>
-          <CustomerRateLimitInput
-            id={`${idPrefix}-${field}`}
-            aria-label={t(`customerPortal.hierarchy.${field}`)}
-            placeholder={t(
-              inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
-            )}
-            value={fields[field]}
-            onChange={(event) => onChange({ [field]: event.target.value })}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function CustomerCustomBudgetFields({
-  fields,
-  onChange,
-  idPrefix,
-  inheritBlank = false,
+export function CustomerBudgetEditor({
+  title,
+  description,
+  id,
+  source,
+  error,
   children,
+  className = "space-y-4",
 }: {
-  fields: BudgetFields;
-  onChange: {
-    (key: Exclude<keyof BudgetFields, "allowedModels">, value: string): void;
-    (key: "allowedModels", value: readonly string[]): void;
-  };
-  idPrefix: string;
-  inheritBlank?: boolean;
-  children?: ReactNode;
+  title?: string;
+  description?: string;
+  id: string;
+  source?: ComponentProps<typeof CustomerBudgetSourceSelect>;
+  error?: ReactNode;
+  children: ReactNode;
+  className?: string;
 }) {
-  const { t } = useTranslation();
-  const changeLimits = (patch: Partial<CustomerLimitValues>) => {
-    if (patch.budgetAmount !== undefined) onChange("maxBudget", patch.budgetAmount);
-    if (patch.tpm !== undefined) onChange("tpm", patch.tpm);
-    if (patch.rpm !== undefined) onChange("rpm", patch.rpm);
-  };
   return (
-    <div className="space-y-5">
-      <CustomerCustomLimitFields
-        fields={{
-          budgetAmount: fields.maxBudget,
-          budgetDuration: fields.budgetDuration === "12mo" ? "12mo" : "1mo",
-          tpm: fields.tpm,
-          rpm: fields.rpm,
-        }}
-        idPrefix={idPrefix}
-        disabled={false}
-        inheritBlank={inheritBlank}
-        periodControl={
-          <CustomerBudgetPeriodSelect
-            value={fields.budgetDuration}
-            onChange={(value) => onChange("budgetDuration", value)}
-          />
-        }
-        onChange={changeLimits}
-      />
-      <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-soft-budget`} className="font-normal text-muted-foreground">
-            {t("customerPortal.hierarchy.softBudget")}
-          </Label>
-          <CustomerBudgetAmountInput
-            id={`${idPrefix}-soft-budget`}
-            label={t("customerPortal.hierarchy.softBudget")}
-            placeholder={t(
-              inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
-            )}
-            value={fields.softBudget}
-            onChange={(value) => onChange("softBudget", value)}
-          />
+    <section className={className} aria-labelledby={title ? `${id}-limits-heading` : undefined}>
+      {title && (
+        <div className="space-y-1">
+          <h3 id={`${id}-limits-heading`} className="font-semibold">
+            {title}
+          </h3>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-models`} className="font-normal text-muted-foreground">
-            {t("customerPortal.hierarchy.allowedModels")}
-          </Label>
-          <CustomerAllowedModelsSelect
-            id={`${idPrefix}-models`}
-            value={fields.allowedModels}
-            onChange={(value) => onChange("allowedModels", value)}
-          />
-          <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.allowedModelsHint")}</p>
-        </div>
-        {children}
-      </div>
-    </div>
+      )}
+      {source && <CustomerBudgetSourceSelect {...source} />}
+      {error}
+      {(!source || source.value === "custom") && children}
+    </section>
   );
 }
 
@@ -293,7 +174,6 @@ export default function CustomerLimitsFields({
   description,
   idPrefix,
   loading = false,
-  customHint,
   inheritedOption,
 }: {
   fields: CustomerLimits;
@@ -304,45 +184,47 @@ export default function CustomerLimitsFields({
   description: string;
   idPrefix: string;
   loading?: boolean;
-  customHint?: string;
   inheritedOption?: { label: string; summary: string };
 }) {
-  const isCustom = profiles === undefined || fields.budgetMode === "custom";
   const selectSource = (value: string | null) => {
     if (value === "inherit") return onChange({ budgetMode: "inherit" });
     if (value === "custom") return onChange({ budgetMode: "custom" });
     const profile = profiles?.find((group) => `profile:${group.budget_id}` === value);
     if (profile) onChange({ budgetMode: "profile", budgetId: profile.budget_id });
   };
+  const changeLimit = (key: "maxBudget" | "budgetDuration" | "tpm" | "rpm", value: string) =>
+    onChange({ [key === "maxBudget" ? "budgetAmount" : key]: value });
   return (
-    <section className="space-y-4" aria-labelledby={`${idPrefix}-limits-heading`}>
-      <div className="space-y-1">
-        <h3 id={`${idPrefix}-limits-heading`} className="font-semibold">
-          {title}
-        </h3>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      {profiles !== undefined && (
-        <CustomerBudgetSourceSelect
-          profiles={profiles}
-          value={fields.budgetMode === "profile" ? `profile:${fields.budgetId}` : fields.budgetMode}
-          title={title}
-          disabled={disabled}
-          loading={loading}
-          onChange={selectSource}
-          inheritedOption={fields.budgetMode === "inherit" ? inheritedOption : undefined}
-        />
-      )}
-      {isCustom && (
-        <CustomerCustomLimitFields
-          fields={fields}
-          disabled={disabled}
-          idPrefix={idPrefix}
-          inheritBlank={Boolean(customHint)}
-          onChange={onChange}
-        />
-      )}
-      {isCustom && customHint && <p className="text-xs text-muted-foreground">{customHint}</p>}
-    </section>
+    <CustomerBudgetEditor
+      id={idPrefix}
+      title={title}
+      description={description}
+      source={
+        profiles === undefined
+          ? undefined
+          : {
+              profiles,
+              value: fields.budgetMode === "profile" ? `profile:${fields.budgetId}` : fields.budgetMode,
+              title,
+              disabled,
+              loading,
+              onChange: selectSource,
+              inheritedOption: fields.budgetMode === "inherit" ? inheritedOption : undefined,
+            }
+      }
+    >
+      <CustomerBudgetLimitFields
+        fields={{
+          maxBudget: fields.budgetAmount,
+          budgetDuration: fields.budgetDuration,
+          tpm: fields.tpm,
+          rpm: fields.rpm,
+        }}
+        disabled={disabled}
+        idPrefix={idPrefix}
+        period="standard"
+        onChange={changeLimit}
+      />
+    </CustomerBudgetEditor>
   );
 }

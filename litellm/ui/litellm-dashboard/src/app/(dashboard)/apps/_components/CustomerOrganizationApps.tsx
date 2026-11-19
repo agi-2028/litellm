@@ -2,10 +2,10 @@
 
 import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
-import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
+import { useCustomerBudgetForm } from "../../customers/_components/useCustomerBudgetForm";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -14,30 +14,30 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { fetchClient } from "@/lib/http/api";
-import { ApiError, extractProxyErrorMessage } from "@/lib/http/client";
+import { extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
-import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
+import {
+  appDefinitionKey,
+  appResourcesKey,
+  loadAppDefinition,
+  loadAppResources,
+  loadApps,
+  organizationAppKey,
+  loadOrganizationApp,
+} from "./appApi";
 import { type App, type AppResource, type AppOrganization } from "./appForms";
 import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
-import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
+import { CustomerBudgetEditor } from "../../customers/_components/CustomerLimitsFields";
 import AppBudgetLimits from "./AppBudgetLimits";
+import {
+  associationBaseBudget,
+  associationBudgetPatch,
+  appOrganizationPresetId,
+  hasLegacyAppBudget,
+} from "./appAssociationBudget";
 import { useAppBudgetGroups } from "./useAppBudgetGroups";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 import { calendarDate, customerPresetRange } from "../../customers/_components/customerUsageRange";
-
-const organizationAppKey = (appId: string | null, organizationId: string) =>
-  ["app-organization", appId, organizationId] as const;
-const loadOrganizationApp = async (appId: string, organizationId: string) => {
-  try {
-    const response = await fetchClient.GET("/management/v1/apps/{app_id}/customer_organizations/{customer_org_id}", {
-      params: { path: { app_id: appId, customer_org_id: organizationId } },
-    });
-    return response.data ?? null;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-};
 
 export default function CustomerOrganizationApps({
   organizationId,
@@ -218,10 +218,7 @@ function useOrganizationApps(organizationId: string) {
     })),
   });
   const groups = useAppBudgetGroups(
-    (apps.data ?? []).map(
-      (app, index) =>
-        associations[index]?.data?.budget_id ?? associations[index]?.data?.tier_budget_id ?? app.default_tier_budget_id,
-    ),
+    (apps.data ?? []).map((app, index) => appOrganizationPresetId(associations[index]?.data, app)),
     resourceType !== null,
   );
   const resources = useQuery({
@@ -262,13 +259,13 @@ function OrganizationAppsTable({
   return (
     <AppBudgetTable scope="organization" usageLayout={usageLayout}>
       {rows.map(({ app, row }) => {
-        const profileId = row.budget_id ?? row.tier_budget_id ?? app.default_tier_budget_id;
+        const profileId = appOrganizationPresetId(row, app);
         const profileName = groups.find((group) => group.budget_id === profileId)?.name;
         let sourceLabel = t("apps.appDefault");
-        if (row.budget || row.budget_override_id) sourceLabel = t("customerPortal.organizationGroups.customBadge");
+        if (row.budget || hasLegacyAppBudget(row)) sourceLabel = t("customerPortal.organizationGroups.customBadge");
         else if (row.budget_id || row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
-        if (!row.budget_override_id && !row.budget_id && !row.tier_budget_id && profileName)
-          sourceLabel = `${profileName} · ${sourceLabel}`;
+        const inheritedProfile = !row.budget_id && !row.tier_budget_id && !hasLegacyAppBudget(row);
+        if (inheritedProfile && profileName) sourceLabel = `${profileName} · ${sourceLabel}`;
         const resource: AppResource = {
           resource_type: app.resource_type,
           resource_id: app.resource_id,
@@ -334,6 +331,18 @@ function OrganizationApp({
     retry: false,
   };
   const association = useQuery(associationOptions);
+  const apps = useQuery({ queryKey: ["apps"], queryFn: () => loadApps() });
+  const app = apps.data?.find((item) => item.app_id === resource.app_id);
+  const presetId = appOrganizationPresetId(association.data, app);
+  const groups = useAppBudgetGroups(association.data?.budget ? [] : [presetId]);
+  if (groups.isPending || apps.isPending) return <p role="status">{t("apps.loading")}</p>;
+  if (groups.isError || apps.isError)
+    return (
+      <ErrorState
+        message={extractProxyErrorMessage(groups.error ?? apps.error)}
+        onRetry={() => void Promise.all([groups.refetch(), apps.refetch()])}
+      />
+    );
   if (resource.app_id && association.isPending) return <p role="status">{t("apps.loading")}</p>;
   if (association.isError)
     return (
@@ -345,6 +354,8 @@ function OrganizationApp({
       organizationId={organizationId}
       organizationAlias={organizationAlias}
       row={association.data ?? null}
+      groups={groups.data?.default_budgets ?? []}
+      inherited={groups.data?.default_budgets.find((group) => group.budget_id === presetId) ?? null}
       pending={pending}
       onPendingChange={onPendingChange}
       onClose={onClose}
@@ -353,7 +364,7 @@ function OrganizationApp({
 }
 
 function organizationBudgetSource(row: AppOrganization | null): "inherit" | "profile" | "custom" {
-  if (row?.budget || (row?.budget_override != null && row.budget_override_expires_at == null)) return "custom";
+  if (row?.budget || hasLegacyAppBudget(row)) return "custom";
   if (row?.budget_id || row?.tier_budget_id) return "profile";
   return "inherit";
 }
@@ -363,6 +374,8 @@ function OrganizationAppForm({
   organizationId,
   organizationAlias,
   row,
+  groups,
+  inherited,
   pending,
   onPendingChange,
   onClose,
@@ -371,72 +384,70 @@ function OrganizationAppForm({
   organizationId: string;
   organizationAlias?: string | null;
   row: AppOrganization | null;
+  groups: NonNullable<ReturnType<typeof useAppBudgetGroups>["data"]>["default_budgets"];
+  inherited: import("../../customers/_components/customerBudgetForm").Budget | null;
   pending: boolean;
   onPendingChange: (pending: boolean) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const groups = useAppBudgetGroups([row?.budget_id ?? row?.tier_budget_id]);
-  const [source, setSource] = useState(() => organizationBudgetSource(row));
-  const original = row?.budget ?? (row?.budget_override_expires_at == null ? row?.budget_override : null);
-  const [profile, setProfile] = useState(row?.budget_id ?? row?.tier_budget_id ?? "");
-  const [override, setOverride] = useState(() => compactBudgetEditorFields(original));
-  const [member, setMember] = useState(() =>
-    compactBudgetEditorFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
-  );
-  const { error, setError, run } = useCustomerBudgetSave(onPendingChange);
-  const profileUnavailable = source === "profile" && !groups.isSuccess;
-  const changeSource = (value: string | null) => {
-    if (value === "custom" || value === "inherit") {
-      setSource(value);
-      return;
-    }
-    const group = groups.data?.default_budgets.find((group) => `profile:${group.budget_id}` === value);
-    if (group) {
-      setSource("profile");
-      setProfile(group.budget_id);
-    }
-  };
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    if (pending || profileUnavailable) return;
-    const budget = compactBudgetEditorValue(
-      { ...override, budgetEnabled: source === "custom" },
-      original,
-    );
-    const memberBudget = compactBudgetEditorValue(
-      member,
-      row?.customer_member_budget_id ? row.effective_customer_member_budget : null,
-    );
-    const missingProfile = source === "profile" && !profile;
-    if (!budget.ok || !memberBudget.ok || missingProfile) {
-      setError(t(source === "profile" && !profile ? "apps.chooseProfile" : "customerPortal.hierarchy.invalidNumber"));
-      return;
-    }
-    await run(async () => {
-      let appId = resource.app_id;
-      if (!appId) {
-        const created = await fetchClient.POST("/management/v1/apps", {
-          body: { resource_id: resource.resource_id, resource_type: resource.resource_type },
+  const original = associationBaseBudget(row, inherited);
+  const memberOriginal = row?.customer_member_budget_id ? row.effective_customer_member_budget : null;
+  const form = useCustomerBudgetForm(
+    {
+      initial: {
+        source:
+          organizationBudgetSource(row) === "profile"
+            ? `profile:${row?.budget_id ?? row?.tier_budget_id}`
+            : organizationBudgetSource(row),
+        budget: compactBudgetEditorFields(original),
+        member: compactBudgetEditorFields(memberOriginal),
+      },
+      parse: ({ source, budget, member }) => {
+        const parsed = associationBudgetPatch({ ...budget, budgetEnabled: source === "custom" }, original, row);
+        const memberBudget = compactBudgetEditorValue(member, memberOriginal);
+        if (!parsed.ok || !memberBudget.ok) return { ok: false, error: t("customerPortal.hierarchy.invalidNumber") };
+        return {
+          ok: true,
+          value: {
+            ...(source === "custom"
+              ? parsed.value
+              : { budget_id: source.startsWith("profile:") ? source.slice(8) : null }),
+            ...(hasLegacyAppBudget(row) ? { budget_override: null } : {}),
+            customer_member_budget: memberBudget.value,
+          },
+        };
+      },
+      write: async (body) => {
+        const appId =
+          resource.app_id ??
+          (
+            await fetchClient.POST("/management/v1/apps", {
+              body: { resource_id: resource.resource_id, resource_type: resource.resource_type },
+            })
+          ).data?.app_id;
+        if (!appId) throw new Error(t("apps.saveFailed"));
+        await fetchClient.PUT("/management/v1/apps/{app_id}/customer_organizations/{customer_org_id}", {
+          params: { path: { app_id: appId, customer_org_id: organizationId } },
+          body,
         });
-        if (!created.data) throw new Error(t("apps.saveFailed"));
-        appId = created.data.app_id;
-      }
-      await fetchClient.PUT("/management/v1/apps/{app_id}/customer_organizations/{customer_org_id}", {
-        params: { path: { app_id: appId, customer_org_id: organizationId } },
-        body: {
-          ...(source === "custom" ? { budget: budget.value } : { budget_id: source === "profile" ? profile : null }),
-          ...(row?.budget_override != null && row.budget_override_expires_at == null ? { budget_override: null } : {}),
-          customer_member_budget: memberBudget.value,
-        },
-      });
-      await queryClient.invalidateQueries({ queryKey: ["apps"] });
-      await queryClient.invalidateQueries({ queryKey: ["app-resources"] });
-      await queryClient.invalidateQueries({ queryKey: ["app-organization"] });
-      await queryClient.invalidateQueries({ queryKey: ["app-member"] });
-      onClose();
-    });
+        await Promise.all(
+          ["apps", "app-resources", "app-organization", "app-member"].map((key) =>
+            queryClient.invalidateQueries({ queryKey: [key] }),
+          ),
+        );
+        onClose();
+      },
+    },
+    onPendingChange,
+  );
+  const { fields, update, error, save } = form;
+  const changeSource = (source: string | null) => {
+    if (!source) return;
+    const selected = groups.find((group) => `profile:${group.budget_id}` === fields.source);
+    if (source === "custom") update("budget", compactBudgetEditorFields(selected ?? original));
+    update("source", source);
   };
   return (
     <CustomerBudgetForm
@@ -444,39 +455,30 @@ function OrganizationAppForm({
       pending={pending}
       error={error}
       onClose={onClose}
-      dirty={!profileUnavailable}
       saveLabel={t("apps.saveBudget")}
       label={t("apps.organizationSettings")}
     >
-      <section aria-labelledby="app-budget-source-heading" className="space-y-4">
-        <div className="space-y-1">
-          <h3 id="app-budget-source-heading" className="font-semibold">
-            {t("apps.source")}
-          </h3>
-          <p className="text-sm text-muted-foreground">{t("apps.customerAppLimitHint")}</p>
-        </div>
-        <CustomerBudgetSourceSelect
-          profiles={groups.data?.default_budgets ?? []}
-          value={source === "profile" ? `profile:${profile}` : source}
-          onChange={changeSource}
-          title={t("apps.source")}
-          disabled={pending || !groups.isSuccess}
-          loading={groups.isPending}
-          inheritedOption={{ label: t("apps.appDefault"), summary: t("apps.appDefaultHint") }}
+      <CustomerBudgetEditor
+        id="app-budget-source"
+        title={t("apps.source")}
+        description={t("apps.customerAppLimitHint")}
+        source={{
+          profiles: groups,
+          value: fields.source,
+          onChange: changeSource,
+          title: t("apps.source"),
+          disabled: pending,
+          inheritedOption: { label: t("apps.appDefault"), summary: t("apps.appDefaultHint") },
+        }}
+      >
+        <CustomerBudgetCompactFields
+          fields={fields.budget}
+          original={original}
+          onChange={(value) => update("budget", value)}
+          disabled={pending}
+          id="org-app-override"
         />
-        {groups.isError && (
-          <ErrorState message={extractProxyErrorMessage(groups.error)} onRetry={() => void groups.refetch()} />
-        )}
-        {source === "custom" && (
-          <CustomerBudgetCompactFields
-            fields={override}
-            original={original}
-            onChange={setOverride}
-            disabled={pending}
-            id="org-app-override"
-          />
-        )}
-      </section>
+      </CustomerBudgetEditor>
       <section aria-labelledby="app-member-limits-heading" className="space-y-4 border-t pt-5">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -487,16 +489,16 @@ function OrganizationAppForm({
           </div>
           <Switch
             aria-label={t("apps.enableMemberLimits")}
-            checked={member.budgetEnabled}
+            checked={fields.member.budgetEnabled}
             disabled={pending}
-            onCheckedChange={(budgetEnabled) => setMember((current) => ({ ...current, budgetEnabled }))}
+            onCheckedChange={(budgetEnabled) => update("member", { ...fields.member, budgetEnabled })}
           />
         </div>
-        {member.budgetEnabled && (
+        {fields.member.budgetEnabled && (
           <CustomerBudgetCompactFields
-            fields={member}
+            fields={fields.member}
             original={row?.customer_member_budget_id ? row.effective_customer_member_budget : null}
-            onChange={setMember}
+            onChange={(value) => update("member", value)}
             disabled={pending}
             id="org-app-member"
           />

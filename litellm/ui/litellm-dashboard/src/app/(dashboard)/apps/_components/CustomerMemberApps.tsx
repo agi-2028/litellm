@@ -1,20 +1,22 @@
 "use client";
 
-import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
+import { compactBudgetEditorFields, type Budget } from "../../customers/_components/customerBudgetForm";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { loadApps } from "./appApi";
+import { loadApps, loadOrganizationApp, organizationAppKey } from "./appApi";
 import { type App, type AppMember } from "./appForms";
 import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
-import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
+import { CustomerBudgetEditor } from "../../customers/_components/CustomerLimitsFields";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
-import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
+import { useCustomerBudgetForm } from "../../customers/_components/useCustomerBudgetForm";
+import { associationBaseBudget, associationBudgetPatch, hasLegacyAppBudget } from "./appAssociationBudget";
+import { ErrorState } from "@/components/shared/ErrorState";
 import AppBudgetLimits from "./AppBudgetLimits";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 
@@ -28,10 +30,12 @@ const BUDGET_SOURCES = {
 
 export default function CustomerMemberApps({
   memberId,
+  organizationId,
   usageContext,
   onAppSelect,
 }: {
   memberId: string;
+  organizationId: string;
   usageContext?: AppUsageContext;
   onAppSelect?: (appId: string) => void;
 }) {
@@ -51,6 +55,7 @@ export default function CustomerMemberApps({
               key={app.app_id}
               app={app}
               memberId={memberId}
+              organizationId={organizationId}
               usageContext={usageContext}
               onAppSelect={onAppSelect}
             />
@@ -64,11 +69,13 @@ export default function CustomerMemberApps({
 function MemberAppRow({
   app,
   memberId,
+  organizationId,
   usageContext,
   onAppSelect,
 }: {
   app: App;
   memberId: string;
+  organizationId: string;
   usageContext?: AppUsageContext;
   onAppSelect?: (appId: string) => void;
 }) {
@@ -140,7 +147,8 @@ function MemberAppRow({
         </TableCell>
       </TableRow>
       {editing && member.data && (
-        <MemberBudgetForm
+        <MemberBudgetLoader
+          organizationId={organizationId}
           app={app}
           row={member.data}
           onCancel={() => setEditing(false)}
@@ -154,40 +162,57 @@ function MemberAppRow({
   );
 }
 
+function MemberBudgetLoader(props: {
+  app: App;
+  row: AppMember;
+  organizationId: string;
+  onSaved: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const inherited = useQuery({
+    queryKey: organizationAppKey(props.app.app_id, props.organizationId),
+    queryFn: () => loadOrganizationApp(props.app.app_id, props.organizationId),
+    enabled: !props.row.budget,
+  });
+  if (!props.row.budget && inherited.isPending) return <p role="status">{t("apps.loading")}</p>;
+  if (inherited.isError) return <ErrorState onRetry={() => void inherited.refetch()} />;
+  const original = associationBaseBudget(
+    props.row,
+    inherited.data?.effective_customer_member_budget ?? props.app.default_customer_member_budget,
+  );
+  return <MemberBudgetForm {...props} original={original} />;
+}
+
 function MemberBudgetForm({
   app,
   row,
+  original,
   onSaved,
   onCancel,
 }: {
   app: App;
   row: AppMember;
+  original: Budget | null;
   onSaved: () => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const original = row.budget ?? (row.budget_override_expires_at == null ? row.budget_override : null);
-  const [fields, setFields] = useState(() => compactBudgetEditorFields(original));
-  const { pending, error, setError, run } = useCustomerBudgetSave();
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    if (pending) return;
-    const budget = compactBudgetEditorValue(fields, original);
-    if (!budget.ok) {
-      setError(t(budget.error));
-      return;
-    }
-    await run(async () => {
+  const form = useCustomerBudgetForm({
+    initial: { ...compactBudgetEditorFields(original), budgetEnabled: Boolean(row.budget) || hasLegacyAppBudget(row) },
+    parse: (fields) => {
+      const result = associationBudgetPatch(fields, original, row);
+      return result.ok ? result : { ok: false, error: t(result.error) };
+    },
+    write: async (body) => {
       await fetchClient.PUT("/management/v1/apps/{app_id}/customer_members/{customer_member_id}", {
         params: { path: { app_id: app.app_id, customer_member_id: row.customer_member_id } },
-        body: {
-          budget: budget.value,
-          ...(row.budget_override != null && row.budget_override_expires_at == null ? { budget_override: null } : {}),
-        },
+        body,
       });
       await onSaved();
-    });
-  };
+    },
+  });
+  const { fields, setFields, update, pending, error, save } = form;
   return (
     <CustomerBudgetDialog
       title={t("apps.editMemberBudget", { alias: app.alias })}
@@ -202,15 +227,17 @@ function MemberBudgetForm({
         onClose={onCancel}
         saveLabel={t("apps.saveMemberBudget")}
       >
-        <CustomerBudgetSourceSelect
-          profiles={[]}
-          value={fields.budgetEnabled ? "custom" : "inherit"}
-          title={t("apps.source")}
-          disabled={pending}
-          inheritedOption={{ label: t("apps.inheritedBudget"), summary: t("apps.inheritMemberHint") }}
-          onChange={(value) => setFields((current) => ({ ...current, budgetEnabled: value === "custom" }))}
-        />
-        {fields.budgetEnabled && (
+        <CustomerBudgetEditor
+          id={`app-member-${app.app_id}`}
+          source={{
+            profiles: [],
+            value: fields.budgetEnabled ? "custom" : "inherit",
+            title: t("apps.source"),
+            disabled: pending,
+            inheritedOption: { label: t("apps.inheritedBudget"), summary: t("apps.inheritMemberHint") },
+            onChange: (value) => update("budgetEnabled", value === "custom"),
+          }}
+        >
           <CustomerBudgetCompactFields
             id={`app-member-${app.app_id}`}
             fields={fields}
@@ -218,7 +245,7 @@ function MemberBudgetForm({
             disabled={pending}
             onChange={setFields}
           />
-        )}
+        </CustomerBudgetEditor>
       </CustomerBudgetForm>
     </CustomerBudgetDialog>
   );

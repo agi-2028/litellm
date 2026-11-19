@@ -5,7 +5,7 @@ import { type BudgetEditorFields } from "../../customers/_components/customerBud
 import { Checkbox } from "@/components/ui/checkbox";
 import CustomerBudgetWindows from "../../customers/_components/CustomerBudgetWindows";
 import { useTranslation } from "react-i18next";
-import { CustomerBudgetFields } from "../../customers/_components/CustomerHierarchyBudgetFields";
+import { CustomerBudgetFields } from "../../customers/_components/CustomerBudgetFields";
 
 export default function AppBudgetEditor({
   title,

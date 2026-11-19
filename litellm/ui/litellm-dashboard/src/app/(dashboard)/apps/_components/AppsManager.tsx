@@ -2,7 +2,7 @@
 
 import { budgetEditorFields, budgetEditorValue } from "../../customers/_components/customerBudgetForm";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +15,7 @@ import useAuthorized from "../../hooks/useAuthorized";
 import { isProxyAdminRole } from "@/utils/roles";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
-import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
+import { useCustomerBudgetForm } from "../../customers/_components/useCustomerBudgetForm";
 import { AdminOnlyNotice } from "@/components/shared/AdminOnlyNotice";
 import { appSurchargeField, appSurchargeValue, type App, type AppResource } from "./appForms";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
@@ -174,71 +174,80 @@ function ResourceDefaults({ resource }: { resource: AppResource }) {
 function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [budget, setBudget] = useState(() => budgetEditorFields(app?.budget));
-  const [member, setMember] = useState(() => budgetEditorFields(app?.default_customer_member_budget));
-  const [profile, setProfile] = useState(app?.default_tier_budget_id ?? "");
-  const [autoCreate, setAutoCreate] = useState(app?.auto_create_customers ?? true);
-  const [surcharge, setSurcharge] = useState(() => appSurchargeField(app?.customer_margin));
-  const { pending, error, setError, run } = useCustomerBudgetSave();
   const [saved, setSaved] = useState(false);
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    const appBudget = budgetEditorValue(budget, app?.budget);
-    const memberBudget = budgetEditorValue(member, app?.default_customer_member_budget);
-    if (!appBudget.ok || !memberBudget.ok) {
-      setError(t("customerPortal.hierarchy.invalidNumber"));
-      return;
-    }
-    const customerMargin = appSurchargeValue(surcharge);
-    if (!customerMargin.ok) {
-      setError(t("apps.surchargeInvalid"));
-      return;
-    }
-    await run(async () => {
-      setSaved(false);
-      const body = {
-        budget: appBudget.value,
-        default_customer_member_budget: memberBudget.value,
-        default_tier_budget_id: profile || null,
-        auto_create_customers: autoCreate,
-        customer_margin: customerMargin.value,
+  const { fields, update, pending, error, save } = useCustomerBudgetForm({
+    initial: {
+      budget: budgetEditorFields(app?.budget),
+      member: budgetEditorFields(app?.default_customer_member_budget),
+      profile: app?.default_tier_budget_id ?? "",
+      autoCreate: app?.auto_create_customers ?? true,
+      surcharge: appSurchargeField(app?.customer_margin),
+    },
+    parse: (fields) => {
+      const budget = budgetEditorValue(fields.budget, app?.budget);
+      const member = budgetEditorValue(fields.member, app?.default_customer_member_budget);
+      if (!budget.ok || !member.ok) return { ok: false, error: t("customerPortal.hierarchy.invalidNumber") };
+      const margin = appSurchargeValue(fields.surcharge);
+      if (!margin.ok) return { ok: false, error: t("apps.surchargeInvalid") };
+      return {
+        ok: true,
+        value: {
+          budget: budget.value,
+          default_customer_member_budget: member.value,
+          default_tier_budget_id: fields.profile || null,
+          auto_create_customers: fields.autoCreate,
+          customer_margin: margin.value,
+        },
       };
+    },
+    write: async (body) => {
+      setSaved(false);
       if (app)
         await fetchClient.PATCH("/management/v1/apps/{app_id}", { params: { path: { app_id: app.app_id } }, body });
       else
         await fetchClient.POST("/management/v1/apps", {
           body: { ...body, resource_id: resource.resource_id, resource_type: resource.resource_type },
         });
-      await queryClient.invalidateQueries({ queryKey: ["app-resources"] });
-      await queryClient.invalidateQueries({ queryKey: ["apps"] });
-      await queryClient.invalidateQueries({ queryKey: ["app"] });
-      await queryClient.invalidateQueries({ queryKey: ["app-organization"] });
-      await queryClient.invalidateQueries({ queryKey: ["app-member"] });
+      await Promise.all(
+        ["app-resources", "apps", "app", "app-organization", "app-member"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      );
       setSaved(true);
-    });
-  };
+    },
+  });
   return (
     <form onSubmit={save} className="space-y-5" aria-label={t("apps.defaultsFor", { alias: resource.alias })}>
       <h3 className="text-sm font-semibold">{t("apps.defaultsFor", { alias: resource.alias })}</h3>
       <div className="max-w-md">
         <AppProfileSelect
           id="app-default-profile"
-          value={profile}
-          onChange={setProfile}
+          value={fields.profile}
+          onChange={(value) => update("profile", value)}
           emptyLabel={t("apps.noDefaultProfile")}
         />
       </div>
       <p className="text-xs text-muted-foreground">{t("apps.defaultProfileHint")}</p>
       <div className="grid gap-6 lg:grid-cols-2">
-        <AppBudgetEditor title={t("apps.appBudget")} id="app-budget" fields={budget} onChange={setBudget} />
-        <AppBudgetEditor title={t("apps.memberDefault")} id="app-member" fields={member} onChange={setMember} />
+        <AppBudgetEditor
+          title={t("apps.appBudget")}
+          id="app-budget"
+          fields={fields.budget}
+          onChange={(value) => update("budget", value)}
+        />
+        <AppBudgetEditor
+          title={t("apps.memberDefault")}
+          id="app-member"
+          fields={fields.member}
+          onChange={(value) => update("member", value)}
+        />
       </div>
       <div className="space-y-1.5 border-t pt-4">
         <label className="flex items-center gap-2 text-sm font-medium">
           <Checkbox
-            checked={autoCreate}
+            checked={fields.autoCreate}
             disabled={pending}
-            onCheckedChange={(checked) => setAutoCreate(checked === true)}
+            onCheckedChange={(checked) => update("autoCreate", checked === true)}
           />
           {t("apps.autoCreateCustomers")}
         </label>
@@ -255,8 +264,8 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
           className="w-full"
           placeholder={t("apps.surchargePlaceholder")}
           disabled={pending}
-          value={surcharge}
-          onChange={(event) => setSurcharge(event.target.value)}
+          value={fields.surcharge}
+          onChange={(event) => update("surcharge", event.target.value)}
         />
         <p className="text-xs text-muted-foreground">{t("apps.surchargeHint")}</p>
       </div>
