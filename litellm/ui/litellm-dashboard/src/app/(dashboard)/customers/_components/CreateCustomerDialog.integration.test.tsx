@@ -2,14 +2,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import {
-  fireEvent,
-  renderWithProviders,
-  screen,
-  testQueryClient,
-  waitFor,
-  within,
-} from "../../../../../tests/test-utils";
+import { fireEvent, renderWithProviders, screen, testQueryClient, waitFor } from "../../../../../tests/test-utils";
 import CreateCustomerDialog from "./CreateCustomerDialog";
 
 const creations: unknown[] = [];
@@ -50,6 +43,7 @@ beforeEach(() => {
           {
             default_budgets: [
               { budget_id: "saved-group", name: "100" },
+              { budget_id: "custom", name: "Custom" },
               {
                 budget_id: "named-group",
                 name: "Growth",
@@ -89,16 +83,15 @@ describe("CreateCustomerDialog", () => {
   it.each([
     ["100", "saved-group"],
     ["Growth", "named-group"],
+    ["Custom", "custom"],
   ])("creates an organization using the %s profile", async (name, id) => {
     const user = userEvent.setup();
     renderWithProviders(<Harness />);
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
-    await user.click(screen.getByRole("tab", { name: "Use a profile" }));
-    const profile = screen.getByRole("combobox", { name: "Customer organization profile" });
+    const profile = screen.getByRole("combobox", { name: "Customer organization limits" });
     await waitFor(() => expect(profile).toBeEnabled());
     await user.click(profile);
-    await user.type(profile, name);
-    await user.click(await screen.findByRole("option", { name, exact: true }));
+    await user.click(await screen.findByRole("option", { name: new RegExp(`^${name}`) }));
     await user.click(screen.getByRole("button", { name: "Create customer" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
     expect(creations[0]).toMatchObject({ budget_id: id });
@@ -127,17 +120,20 @@ describe("CreateCustomerDialog", () => {
     fireEvent.change(screen.getByLabelText("Group 2 requests per minute"), { target: { value: "10" } });
     await user.click(screen.getByRole("combobox", { name: "Reset period" }));
     await user.click(screen.getByRole("option", { name: "/ year" }));
-    await user.click(screen.getByRole("tab", { name: "Use a profile" }));
-    const profile = screen.getByRole("combobox", { name: "Customer organization profile" });
+    const profile = screen.getByRole("combobox", { name: "Customer organization limits" });
     await waitFor(() => expect(profile).toBeEnabled());
     await user.click(profile);
-    await user.click(await screen.findByRole("option", { name: "Growth" }));
-    const preview = screen.getByLabelText("Profile limits");
-    expect(preview).toHaveTextContent("$1,200.00 / month");
-    expect(preview).toHaveTextContent("$12,000.00 / year");
-    expect(within(preview).getByText("50,000")).toBeInTheDocument();
-    expect(within(preview).getByText("0")).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Set custom limits" }));
+    await user.click(await screen.findByRole("option", { name: /^Growth/ }));
+    expect(profile).toHaveTextContent("Growth");
+    expect(profile).toHaveTextContent("$1,200/mo");
+    expect(profile).toHaveTextContent("$12,000/yr");
+    expect(profile).toHaveTextContent("50K TPM");
+    expect(profile).toHaveTextContent("0 RPM");
+    expect(screen.queryByLabelText("Spend limit (USD)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tokens per minute")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Requests per minute")).not.toBeInTheDocument();
+    fireEvent.keyDown(profile, { key: "ArrowDown" });
+    await user.click(await screen.findByRole("option", { name: "Enter custom limits instead" }));
     expect(screen.getByLabelText("Spend limit (USD)")).toHaveValue(15000);
     expect(screen.getByLabelText("Tokens per minute")).toHaveValue(25000);
     expect(screen.getByLabelText("Requests per minute")).toHaveValue(120);
@@ -150,15 +146,6 @@ describe("CreateCustomerDialog", () => {
       ]),
     });
     expect(creations[0]).not.toHaveProperty("budget_id");
-  });
-
-  it("requires a selected profile before submitting profile mode", async () => {
-    renderWithProviders(<Harness />);
-    fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
-    await userEvent.click(screen.getByRole("tab", { name: "Use a profile" }));
-    await userEvent.click(screen.getByRole("button", { name: "Create customer" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a customer organization profile.");
-    expect(creations).toHaveLength(0);
   });
 
   it("adds budget groups without a secure browser context", async () => {
