@@ -212,19 +212,18 @@ describe("member budget dialog", () => {
       budget_override: { ...override, max_budget: 250 },
     };
     const refresh = Promise.withResolvers<Response>();
+    const serve = fetchMock.getMockImplementation()!;
     let saved = false;
-    fetchMock.mockImplementation(async (input) => {
+    fetchMock.mockImplementation(async (input, init) => {
       const request = input as Request;
-      if (new URL(request.url).pathname.endsWith("/customer_organizations/org-1")) return json(organization);
+      if (!new URL(request.url).pathname.endsWith("/customer_members/member-1")) return serve(input, init);
       if (request.method === "PATCH") {
         saved = true;
         return json(updated);
       }
       return saved ? refresh.promise : json(member);
     });
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     fireEvent.change(await screen.findByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "250" } });
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
