@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
-import { formatCompact, formatUsd } from "@/app/(dashboard)/usage/_components/components/overview/overviewData";
+import { formatCompact } from "@/app/(dashboard)/usage/_components/components/overview/overviewData";
 import { TableCell, TableHead } from "@/components/ui/table";
 import { cn } from "@/lib/cva.config";
 import type { CustomerUsageEntity } from "./customerUsageApi";
@@ -105,12 +105,7 @@ export function CustomerSpendCells({
             <CustomerBudgetWindow key={budget.source} budget={budget} showReset={monthlyBudgets.length > 1} />
           ))}
           {monthlyBudgets.length === 0 && (
-            <CustomerBudgetSpend
-              spend={monthlySpend}
-              limit={null}
-              label={t("customerPortal.analytics.monthlySpend")}
-              noLimitLabel={t("customerPortal.analytics.noMonthlyLimit")}
-            />
+            <CustomerBudgetSpend spend={monthlySpend} limit={null} label={t("customerPortal.analytics.monthlySpend")} />
           )}
           {otherBudgets.map((budget) => (
             <div key={budget.source} className="space-y-1 text-xs text-muted-foreground">
@@ -129,7 +124,9 @@ export function CustomerSpendCells({
           {yearlyBudgets.map((budget) => (
             <CustomerBudgetWindow key={budget.source} budget={budget} showReset={yearlyBudgets.length > 1} />
           ))}
-          {yearlyBudgets.length === 0 && `${formatUsd(yearlySpend)} / ${t("customerPortal.analytics.noYearlyLimit")}`}
+          {yearlyBudgets.length === 0 && (
+            <CustomerBudgetSpend spend={yearlySpend} limit={null} label={t("customerPortal.analytics.yearlySpend")} />
+          )}
         </div>
       </TableCell>
       <TableCell>

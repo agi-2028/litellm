@@ -473,7 +473,9 @@ describe("CustomerHierarchyUsagePage", () => {
     const table = await screen.findByRole("table", { name: "Customer member spend" });
     const firstMember = within(table).getAllByRole("row")[1];
     expect(firstMember).toHaveTextContent("Member One");
-    expect(within(firstMember).getByText("$20.00 / No monthly limit")).toBeInTheDocument();
+    expect(
+      within(firstMember).getByRole("cell", { name: /^\$20\.00 No limit Recorded budget spend/ }),
+    ).toBeInTheDocument();
     expect(within(firstMember).getByRole("meter", { name: "Share of customer spend" })).toHaveAttribute(
       "aria-valuetext",
       "66.7%",

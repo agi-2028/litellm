@@ -189,7 +189,6 @@ export default function CustomerOrganizationsTable({
                         spend={monthlySpend}
                         limit={null}
                         label={t("customerPortal.analytics.monthlySpend")}
-                        noLimitLabel={t("customerPortal.analytics.noMonthlyLimit")}
                       />
                     )}
                   </div>

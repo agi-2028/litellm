@@ -37,21 +37,28 @@ export default function CustomerBudgetSpend({
   spend,
   limit,
   label,
-  noLimitLabel,
   compact = false,
 }: {
   spend: number | null;
   limit: number | null;
   label: string;
-  noLimitLabel?: string;
   compact?: boolean;
 }) {
   const { t } = useTranslation();
-  const value = `${spend === null ? t("customerPortal.analytics.unknownSpend") : formatUsd(spend)} / ${limit === null ? noLimitLabel ?? t("customerPortal.analytics.noLimit") : formatUsd(limit)}`;
+  const spendValue = spend === null ? t("customerPortal.analytics.unknownSpend") : formatUsd(spend);
+  if (limit === null) {
+    return (
+      <div className="space-y-0.5 whitespace-nowrap tabular-nums">
+        <div>{spendValue}</div>
+        <div className="text-xs text-muted-foreground">{t("customerPortal.analytics.noLimit")}</div>
+      </div>
+    );
+  }
+  const value = `${spendValue} / ${formatUsd(limit)}`;
   const percentage = budgetPercentage(spend ?? 0, limit);
   const color = budgetUsageColor(percentage);
   const balance =
-    limit === null || spend === null
+    spend === null
       ? null
       : t(spend > limit ? "customerPortal.analytics.budgetOver" : "customerPortal.analytics.budgetRemaining", {
           amount: formatUsd(Math.abs(limit - spend)),
@@ -73,7 +80,7 @@ export default function CustomerBudgetSpend({
           </span>
         )}
       </div>
-      {limit !== null && spend !== null && (
+      {spend !== null && (
         <BudgetUsageProgress percentage={percentage} label={label} valueText={`${value}, ${balance}`} />
       )}
     </div>
