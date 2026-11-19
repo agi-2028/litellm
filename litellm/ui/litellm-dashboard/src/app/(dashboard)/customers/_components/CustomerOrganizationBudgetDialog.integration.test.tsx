@@ -67,7 +67,11 @@ describe("organization budget dialog", () => {
       const request = input as Request;
       const path = new URL(request.url).pathname;
       if (path.endsWith("/customer_organization_budget_groups"))
-        return json({ default_budgets: [{ budget_id: "standard", name: "Standard", max_budget: 500 }] });
+        return json({
+          default_budgets: [
+            { budget_id: "standard", name: "Standard", max_budget: 500, allowed_models: ["preset-model"] },
+          ],
+        });
       if (path.endsWith("/customer_organizations/org-1")) return json(organization);
       if (path.endsWith("/models")) return json({ data: [{ id: "configured-model", owned_by: "openai" }] });
       throw new Error(`Unexpected request ${path}`);
@@ -111,6 +115,7 @@ describe("organization budget dialog", () => {
     const source = await screen.findByRole("combobox", { name: "Customer organization limits" });
     await waitFor(() => expect(source).toBeEnabled());
     await chooseSelectOption(user, source, /^Standard/);
+    expect(source).toHaveTextContent("Allowed models: preset-model");
     expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
