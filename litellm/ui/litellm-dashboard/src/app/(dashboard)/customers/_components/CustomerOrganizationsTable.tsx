@@ -3,6 +3,7 @@ import type { SortingState } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { createSerializer, parseAsString } from "nuqs";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/cva.config";
 import { uiHref } from "@/utils/uiHref";
@@ -10,6 +11,8 @@ import { $api } from "@/lib/http/api";
 import CustomerBudgetSpend, { CustomerBudgetWindow } from "./CustomerBudgetSpend";
 import { customerOrganizationBudgetSource, type CustomerOrganizationRow } from "./customerOrganizations";
 import { CustomerBudgetLimitCell } from "./CustomerBudgetColumn";
+import CustomerCacheCost from "./CustomerCacheCost";
+import { EMPTY_CUSTOMER_USAGE, type CustomerUsageTotal, type CustomerUsageTotals } from "./customerUsageTotals";
 
 const usageHref = createSerializer({ org: parseAsString, from: parseAsString, to: parseAsString });
 const SORT_DIRECTIONS = ["ascending", "descending"] as const;
@@ -19,7 +22,14 @@ const COLUMNS = [
   { id: "spend", label: "customerPortal.list.columns.monthlySpend" },
   { id: "budget", label: "customerPortal.hierarchy.maxBudget" },
   { id: "share", label: "customerPortal.list.columns.overallSpendShare" },
+  { id: "tokens", label: "customerPortal.list.columns.tokens", numeric: true },
   { id: "status", label: "customerPortal.list.columns.status" },
+] as const;
+const TOKEN_BREAKDOWN = [
+  { id: "inputTokens", label: "usage.statStrip.tokenPopover.inputTokens", nested: false },
+  { id: "cacheReadTokens", label: "customerPortal.tokenUsage.cacheReadTokens", nested: true },
+  { id: "cacheWriteTokens", label: "customerPortal.tokenUsage.cacheWriteTokens", nested: true },
+  { id: "outputTokens", label: "usage.statStrip.tokenPopover.outputTokens", nested: false },
 ] as const;
 
 export default function CustomerOrganizationsTable({
@@ -30,6 +40,7 @@ export default function CustomerOrganizationsTable({
   searching,
   startDate,
   endDate,
+  usageTotals,
 }: {
   rows: readonly CustomerOrganizationRow[];
   sorting: SortingState;
@@ -38,6 +49,7 @@ export default function CustomerOrganizationsTable({
   searching: boolean;
   startDate: string;
   endDate: string;
+  usageTotals: CustomerUsageTotals | null;
 }) {
   const { t } = useTranslation();
   const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
@@ -45,10 +57,11 @@ export default function CustomerOrganizationsTable({
     <Table aria-label={t("customerPortal.list.title")}>
       <TableHeader>
         <TableRow>
-          {COLUMNS.map(({ id, label }) => {
-            if (id === "group") {
+          {COLUMNS.map((column) => {
+            const { id, label } = column;
+            if (id === "group" || "numeric" in column) {
               return (
-                <TableHead key={id} className="px-4">
+                <TableHead key={id} className={cn("px-4", "numeric" in column && "text-right whitespace-normal")}>
                   {t(label)}
                 </TableHead>
               );
@@ -67,7 +80,7 @@ export default function CustomerOrganizationsTable({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="-mx-2 gap-2"
+                  className={cn("-mx-2 gap-2", id === "share" && "h-auto min-h-8 py-1 text-left whitespace-normal")}
                   onClick={() => onSort([{ id, desc: active ? !descending : id !== "customer" && id !== "budget" }])}
                 >
                   {t(label)}
@@ -105,6 +118,7 @@ export default function CustomerOrganizationsTable({
               budgetSource?.kind === "group"
                 ? budgetSource.name ?? t("customerPortal.organizationGroups.groupBadge")
                 : customLabel;
+            const usage = usageTotals ? usageTotals.get(organization.customer_org_id) ?? EMPTY_CUSTOMER_USAGE : null;
             return (
               <TableRow key={organization.customer_org_id}>
                 <TableCell className="px-4 py-5">
@@ -122,7 +136,7 @@ export default function CustomerOrganizationsTable({
                     </span>
                     <div className="min-w-0">
                       <a
-                        className="block max-w-52 truncate font-medium hover:text-primary hover:underline"
+                        className="block max-w-40 truncate font-medium hover:text-primary hover:underline"
                         title={label}
                         href={usageHref(uiHref("customers/usage"), {
                           org: organization.customer_org_id,
@@ -134,7 +148,7 @@ export default function CustomerOrganizationsTable({
                       </a>
                       {label !== organization.customer_org_id && (
                         <p
-                          className="max-w-52 truncate font-mono text-[11px] text-muted-foreground"
+                          className="max-w-40 truncate font-mono text-[11px] text-muted-foreground"
                           title={organization.customer_org_id}
                         >
                           {organization.customer_org_id}
@@ -182,12 +196,15 @@ export default function CustomerOrganizationsTable({
                       aria-valuemax={100}
                       aria-valuenow={percentage}
                       aria-valuetext={shareLabel}
-                      className="h-2 w-24 overflow-hidden rounded-full bg-muted"
+                      className="h-2 w-14 overflow-hidden rounded-full bg-muted"
                     >
                       <div className="h-full rounded-full bg-primary/60" style={{ width: `${percentage}%` }} />
                     </div>
                     <span className="text-xs tabular-nums text-muted-foreground">{shareLabel}</span>
                   </div>
+                </TableCell>
+                <TableCell className="px-4 text-right tabular-nums">
+                  <CustomerTokenTotal usage={usage} />
                 </TableCell>
                 <TableCell className="px-4 text-right">
                   <span
@@ -204,5 +221,51 @@ export default function CustomerOrganizationsTable({
           })}
       </TableBody>
     </Table>
+  );
+}
+
+function CustomerTokenTotal({ usage }: { usage: CustomerUsageTotal | null }) {
+  const { t } = useTranslation();
+  if (!usage) return "—";
+  const total = t("format.number", { val: usage.tokens });
+  const cacheReadRatio = usage.inputTokens > 0 ? usage.cacheReadTokens / usage.inputTokens : null;
+  const percentCached =
+    cacheReadRatio !== null && cacheReadRatio >= 0 && cacheReadRatio <= 1
+      ? t("customerPortal.tokenUsage.percentCached", {
+          percent: t("format.number", { val: cacheReadRatio, style: "percent", maximumFractionDigits: 0 }),
+        })
+      : undefined;
+  return (
+    <Popover>
+      <PopoverTrigger
+        openOnHover
+        delay={200}
+        aria-label={t("customerPortal.tokenUsage.viewTokenBreakdown", { total })}
+        aria-description={percentCached}
+        className="rounded-sm text-right focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="underline decoration-muted-foreground/60 decoration-dotted underline-offset-4">
+          {t("format.number", { val: usage.tokens, notation: "compact", maximumFractionDigits: 2 })}
+        </span>
+        {percentCached && <span className="block text-xs text-muted-foreground">{percentCached}</span>}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="gap-2">
+        <PopoverTitle>{t("customerPortal.tokenUsage.tokenBreakdown")}</PopoverTitle>
+        <dl className="space-y-1 tabular-nums">
+          {TOKEN_BREAKDOWN.map(({ id, label, nested }) => (
+            <div key={id} className="flex justify-between gap-3">
+              <dt className={cn("text-muted-foreground", nested && "pl-3")}>{t(label)}</dt>
+              <dd>{t("format.number", { val: usage[id] })}</dd>
+            </div>
+          ))}
+          <div className="mt-2 flex justify-between gap-3 border-t border-border pt-2">
+            <dt className="text-muted-foreground">{t("customerPortal.tokenUsage.cacheCost")}</dt>
+            <dd className="text-right">
+              <CustomerCacheCost usage={usage} />
+            </dd>
+          </div>
+        </dl>
+      </PopoverContent>
+    </Popover>
   );
 }

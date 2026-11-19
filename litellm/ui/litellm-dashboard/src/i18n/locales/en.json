@@ -8150,6 +8150,11 @@
       "modelHub": "Model Hub",
       "skillsHub": "Skills Hub",
       "eyebrow": "The LiteLLM catalog",
+      "quickStart": "Quick start with LiteLLM",
+      "moreNavigation": "More navigation",
+      "allProviders": "All providers",
+      "allModes": "All",
+      "perMillion": "/M",
       "modelsDescription": "Find pricing, context, and capabilities.",
       "skillsDescription": "Discover reusable skills for your agents.",
       "filters": "Filters",
@@ -8158,9 +8163,9 @@
       "capabilities": "Capabilities",
       "mode": "Mode",
       "model": "Model",
-      "inputLimit": "Input limit",
-      "inputPrice": "Input /1M",
-      "outputPrice": "Output /1M",
+      "inputLimit": "Context",
+      "inputPrice": "Input cost",
+      "outputPrice": "Output cost",
       "searchModels": "Search models",
       "loadingModels": "Loading models…",
       "modelCount_one": "{{count}} model",
@@ -20965,6 +20970,17 @@
     "appOrganizationGroups": {
       "title": "App × customer organization budget groups",
       "help": "Reusable limits for one customer's usage within an app. These are separate from organization-wide limits."
+    },
+    "tokenUsage": {
+      "tokenBreakdown": "Token breakdown",
+      "viewTokenBreakdown": "{{total}} total tokens. View breakdown",
+      "percentCached": "{{percent}} cached",
+      "cacheReadTokens": "Cache read tokens",
+      "cacheWriteTokens": "Cache write tokens",
+      "cacheCost": "Recorded cache cost",
+      "uncachedInputTokens": "Uncached input tokens",
+      "unclassifiedTokens": "Unclassified tokens",
+      "inconsistent": "Days with inconsistent token counts are shown as unclassified tokens."
     },
     "organizationGroups": {
       "title": "Organization budget groups",

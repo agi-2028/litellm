@@ -34355,6 +34355,11 @@ export interface components {
              */
             total_autorouter_savings_spend: number;
             /**
+             * Total Cache Cost
+             * @default 0
+             */
+            total_cache_cost: number;
+            /**
              * Total Cache Creation Input Tokens
              * @default 0
              */
@@ -34405,6 +34410,11 @@ export interface components {
              * @default 1
              */
             total_pages: number;
+            /**
+             * Total Priced Cache Tokens
+             * @default 0
+             */
+            total_priced_cache_tokens: number;
             /**
              * Total Prompt Caching Savings Spend
              * @default 0
@@ -50381,6 +50391,12 @@ export interface components {
              */
             autorouter_savings_spend: number;
             /**
+             * Cache Cost
+             * @description Recorded cache read and write cost in USD for customer usage
+             * @default 0
+             */
+            cache_cost: number;
+            /**
              * Cache Creation Input Tokens
              * @default 0
              */
@@ -50432,6 +50448,12 @@ export interface components {
              * @default 0
              */
             guardrail_spend: number;
+            /**
+             * Priced Cache Tokens
+             * @description Cache tokens with a recorded cost for customer usage
+             * @default 0
+             */
+            priced_cache_tokens: number;
             /**
              * Prompt Caching Savings Spend
              * @default 0
@@ -54858,6 +54880,12 @@ export interface components {
             budget_duration?: string | null;
             /** Budget Limits */
             budget_limits?: components["schemas"]["BudgetLimitEntry"][] | null;
+            /** Budget Limits Usage */
+            budget_limits_usage?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            } | null;
             /** Budget Reset At */
             budget_reset_at?: string | null;
             /** Created At */
