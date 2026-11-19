@@ -130,38 +130,24 @@ describe("customer app budgets", () => {
     });
   });
 
-  it.each(["2000-01-01T00:00:00Z", "2099-01-01T00:00:00Z"])(
-    "keeps the preset source for a temporary grant expiring at %s",
-    async (expiry) => {
-      bound = true;
-      assigned = true;
-      customAssociation = {
-        ...assignedBudget,
-        budget_id: "standard",
-        budget: null,
-        budget_override_id: "grant-1",
-        budget_override: { max_budget: 200 },
-        budget_override_expires_at: expiry,
-      };
-      render(<CustomerOrganizationApps organizationId="org-1" />);
-      const table = within(await screen.findByRole("table", { name: "App budgets" }));
-      expect(await table.findByText("Tier 1")).toBeInTheDocument();
-      expect(table.queryByText("Custom")).not.toBeInTheDocument();
-    },
-  );
-
-  it("labels a non-expiring legacy override as Custom", async () => {
+  it.each([
+    { source: "expired grant", expiry: "2000-01-01T00:00:00Z", label: "Tier 1" },
+    { source: "active grant", expiry: "2099-01-01T00:00:00Z", label: "Tier 1" },
+    { source: "legacy override", expiry: null, label: "Custom" },
+  ])("labels a $source as $label", async ({ expiry, label }) => {
     bound = true;
     assigned = true;
     customAssociation = {
       ...assignedBudget,
-      budget_override_id: "legacy-1",
+      ...(expiry === null ? {} : { budget_id: "standard", budget: null }),
+      budget_override_id: expiry === null ? "legacy-1" : "grant-1",
       budget_override: { max_budget: 200 },
-      budget_override_expires_at: null,
+      budget_override_expires_at: expiry,
     };
     render(<CustomerOrganizationApps organizationId="org-1" />);
     const table = within(await screen.findByRole("table", { name: "App budgets" }));
-    expect(await table.findByText("Custom")).toBeInTheDocument();
+    expect(await table.findByText(label)).toBeInTheDocument();
+    expect(table.queryAllByText("Custom")).toHaveLength(expiry === null ? 1 : 0);
   });
 
   it("edits optional member-default rates without resubmitting a displayed temporary cap", async () => {
