@@ -40,7 +40,6 @@ export default function CustomerOrganizationBudgetFields({
       onChange("templateId", originalGroup ? "" : organization.budget_id ?? "");
       if (usingGroup) {
         onChange("budgetEnabled", true);
-        if (originalGroup) onChange("budgetDuration", "1mo");
       }
       return;
     }

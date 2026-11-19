@@ -108,9 +108,39 @@ describe("CustomerHierarchySettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toMatchObject({
-      budget: { max_budget: null, tpm_limit: 50000, rpm_limit: 60 },
+      budget: { tpm_limit: 50000, rpm_limit: 60 },
     });
   });
+
+  it.each([false, true])(
+    "omits an unchanged displayed cap on an RPM-only organization edit, shared %s",
+    async (shared) => {
+      const user = userEvent.setup();
+      const displayed = {
+        ...organization,
+        budget_id: shared ? "shared" : "owned",
+        budget_is_shared: shared,
+        budget: {
+          ...organization.budget,
+          max_budget: 150,
+          budget_limits: [{ budget_duration: "12mo", max_budget: 1200 }],
+        },
+      };
+      fetchMock.mockResolvedValue(json(displayed));
+      render(settings({ kind: "organization", record: displayed }));
+      if (shared)
+        await chooseSelectOption(
+          user,
+          screen.getByRole("combobox", { name: "Customer organization limits" }),
+          "Enter custom limits instead",
+        );
+      expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(150);
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
+      await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+      expect(await lastRequest().clone().json()).toEqual({ budget: { rpm_limit: 0 } });
+    },
+  );
 
   it("should render the existing organization settings and read-only identifier", () => {
     render(settings({ kind: "organization", record: organization }));
@@ -161,7 +191,9 @@ describe("CustomerHierarchySettings", () => {
     expect(new URL(lastRequest().url).pathname).toBe("/management/v1/customer_organizations/org-1");
     expect(await lastRequest().clone().json()).toEqual({
       alias: "Renamed",
-      ...(amount || max_budget != null ? { budget: { ...custom.budget, max_budget: amount ? 0 : null } } : {}),
+      ...(amount || max_budget != null
+        ? { budget: { max_budget: amount ? 0 : null, ...(amount ? { budget_duration } : {}) } }
+        : {}),
     });
   });
 
@@ -190,7 +222,7 @@ describe("CustomerHierarchySettings", () => {
     expect(await lastRequest().clone().json()).toEqual(
       amount === "Growth"
         ? { alias: "Renamed" }
-        : { budget: { ...organization.budget, max_budget: amount ? 175 : null, budget_limits: null } },
+        : { budget: { max_budget: amount ? 175 : null, ...(amount ? { budget_duration: "1mo" } : {}) } },
     );
   });
 
@@ -225,7 +257,7 @@ describe("CustomerHierarchySettings", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
       alias: "Renamed",
-      ...(!shared ? { budget: { ...organization.budget, max_budget: 40, tpm_limit: 300 } } : {}),
+      ...(!shared ? { budget: { max_budget: 40, budget_duration: "1mo", tpm_limit: 300 } } : {}),
     });
   });
 
@@ -235,7 +267,7 @@ describe("CustomerHierarchySettings", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(await lastRequest().clone().json()).toEqual({ budget: { ...organization.budget, max_budget: null } });
+    expect(await lastRequest().clone().json()).toEqual({ budget: { max_budget: null } });
   });
 
   it("should show friendly template names while sending the selected template identifier", async () => {
@@ -280,15 +312,10 @@ describe("CustomerHierarchySettings", () => {
     const savedAmount = amount ? 75 : null;
     const yearlyWindows = amount ? [{ max_budget: 75, budget_duration: "12mo" }] : null;
     expect(await lastRequest().clone().json()).toEqual({
-      budget: {
-        ...custom.budget,
-        soft_budget: null,
-        tpm_limit: null,
-        rpm_limit: null,
-        allowed_models: null,
-        max_budget: period === "Monthly" ? savedAmount : 10,
-        budget_limits: period === "Yearly" ? yearlyWindows : custom.budget?.budget_limits,
-      },
+      budget:
+        period === "Monthly"
+          ? { max_budget: savedAmount, ...(savedAmount != null ? { budget_duration: "1mo" } : {}) }
+          : { budget_limits: yearlyWindows },
     });
   });
 
@@ -311,13 +338,10 @@ describe("CustomerHierarchySettings", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
       budget: {
-        budget_limits: null,
         max_budget: 75,
-        soft_budget: null,
         budget_duration: "1mo",
         tpm_limit: 50000,
         rpm_limit: 60,
-        allowed_models: null,
       },
     });
   });
@@ -355,8 +379,9 @@ describe("CustomerHierarchySettings", () => {
   it("converts legacy permanent overrides without changing untouched inherited limits", async () => {
     const legacy = {
       ...member,
+      budget: { ...member.budget, rpm_limit: 10 },
       budget_override_expires_at: null,
-      effective_budget: { max_budget: 20, budget_duration: "1mo", rpm_limit: 10 },
+      effective_budget: { max_budget: 70, budget_duration: "1mo", rpm_limit: 10 },
     };
     fetchMock.mockResolvedValue(json(legacy));
     render(settings({ kind: "member", record: legacy }));

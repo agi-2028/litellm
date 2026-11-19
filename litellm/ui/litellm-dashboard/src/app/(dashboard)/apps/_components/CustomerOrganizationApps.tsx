@@ -1,6 +1,6 @@
 "use client";
 
-import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
+import { compactBudgetEditorFields, permanentBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_compo
 import { useCustomerBudgetForm } from "../../customers/_components/useCustomerBudgetForm";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { SearchSelect } from "@/components/shared/SearchSelect";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,18 +24,18 @@ import {
   organizationAppKey,
   loadOrganizationApp,
 } from "./appApi";
-import { type App, type AppResource, type AppOrganization } from "./appForms";
+import { appOrganizationPresetId, type App, type AppResource, type AppOrganization } from "./appForms";
 import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
 import { CustomerBudgetEditor } from "../../customers/_components/CustomerLimitsFields";
-import AppBudgetLimits from "./AppBudgetLimits";
 import {
-  associationBaseBudget,
-  associationBudgetPatch,
-  appOrganizationPresetId,
-  hasLegacyAppBudget,
-} from "./appAssociationBudget";
+  customerBaseBudget,
+  customerBudgetPatch,
+  hasLegacyCustomerBudget,
+} from "../../customers/_components/customerBudgetForm";
 import { useAppBudgetGroups } from "./useAppBudgetGroups";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
+import AppBudgetLimits from "./AppBudgetLimits";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { calendarDate, customerPresetRange } from "../../customers/_components/customerUsageRange";
 
 export default function CustomerOrganizationApps({
@@ -262,9 +261,9 @@ function OrganizationAppsTable({
         const profileId = appOrganizationPresetId(row, app);
         const profileName = groups.find((group) => group.budget_id === profileId)?.name;
         let sourceLabel = t("apps.appDefault");
-        if (row.budget || hasLegacyAppBudget(row)) sourceLabel = t("customerPortal.organizationGroups.customBadge");
+        if (row.budget || hasLegacyCustomerBudget(row)) sourceLabel = t("customerPortal.organizationGroups.customBadge");
         else if (row.budget_id || row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
-        const inheritedProfile = !row.budget_id && !row.tier_budget_id && !hasLegacyAppBudget(row);
+        const inheritedProfile = !row.budget_id && !row.tier_budget_id && !hasLegacyCustomerBudget(row);
         if (inheritedProfile && profileName) sourceLabel = `${profileName} · ${sourceLabel}`;
         const resource: AppResource = {
           resource_type: app.resource_type,
@@ -364,7 +363,7 @@ function OrganizationApp({
 }
 
 function organizationBudgetSource(row: AppOrganization | null): "inherit" | "profile" | "custom" {
-  if (row?.budget || hasLegacyAppBudget(row)) return "custom";
+  if (row?.budget || hasLegacyCustomerBudget(row)) return "custom";
   if (row?.budget_id || row?.tier_budget_id) return "profile";
   return "inherit";
 }
@@ -392,7 +391,7 @@ function OrganizationAppForm({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const original = associationBaseBudget(row, inherited);
+  const original = customerBaseBudget(row, inherited);
   const memberOriginal = row?.customer_member_budget_id ? row.effective_customer_member_budget : null;
   const form = useCustomerBudgetForm(
     {
@@ -405,8 +404,8 @@ function OrganizationAppForm({
         member: compactBudgetEditorFields(memberOriginal),
       },
       parse: ({ source, budget, member }) => {
-        const parsed = associationBudgetPatch({ ...budget, budgetEnabled: source === "custom" }, original, row);
-        const memberBudget = compactBudgetEditorValue(member, memberOriginal);
+        const parsed = customerBudgetPatch({ ...budget, budgetEnabled: source === "custom" }, original, row);
+        const memberBudget = permanentBudgetEditorValue(member, memberOriginal);
         if (!parsed.ok || !memberBudget.ok) return { ok: false, error: t("customerPortal.hierarchy.invalidNumber") };
         return {
           ok: true,
@@ -414,7 +413,7 @@ function OrganizationAppForm({
             ...(source === "custom"
               ? parsed.value
               : { budget_id: source.startsWith("profile:") ? source.slice(8) : null }),
-            ...(hasLegacyAppBudget(row) ? { budget_override: null } : {}),
+            ...(hasLegacyCustomerBudget(row) ? { budget_override: null } : {}),
             customer_member_budget: memberBudget.value,
           },
         };

@@ -115,6 +115,31 @@ describe("Gateway app definition", () => {
     expect(requests.some((request) => new URL(request.url).pathname.includes("/tiers"))).toBe(false);
   });
 
+  it("changes app and member-default rates without persisting unchanged displayed spend caps", async () => {
+    definition = { resource_type: "team" };
+    resources = [{ ...resource, app_id: app.app_id }];
+    const budget = {
+      max_budget: 150,
+      budget_duration: "1mo",
+      rpm_limit: 20,
+      budget_limits: [{ max_budget: 1200, budget_duration: "12mo" }],
+    };
+    configuredApps = [{ ...app, budget, default_customer_member_budget: budget }];
+    const user = userEvent.setup();
+    render(<AppsManager />);
+    await user.click(await screen.findByRole("button", { name: "chat" }));
+    const overall = within(await screen.findByRole("group", { name: "Overall app budget" }));
+    const member = within(screen.getByRole("group", { name: "Default per-member budget" }));
+    expect(overall.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(150);
+    fireEvent.change(overall.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+    fireEvent.change(member.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "30" } });
+    await user.click(screen.getByRole("button", { name: "Save app settings" }));
+    await waitFor(() => expect(requests.some((request) => request.method === "PATCH")).toBe(true));
+    const body = await requests.find((request) => request.method === "PATCH")!.json();
+    expect(body.budget).toEqual({ rpm_limit: 0 });
+    expect(body.default_customer_member_budget).toEqual({ rpm_limit: 30 });
+  });
+
   it("should send the app's customer creation switch turned off when the admin unchecks it", async () => {
     const user = userEvent.setup();
     definition = { resource_type: "team" };

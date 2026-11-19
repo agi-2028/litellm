@@ -101,6 +101,62 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer app budgets", () => {
+  it.each(["2000-01-01T00:00:00Z", "2099-01-01T00:00:00Z"])(
+    "keeps the preset source for a temporary grant expiring at %s",
+    async (expiry) => {
+      bound = true;
+      assigned = true;
+      customAssociation = {
+        ...assignedBudget,
+        budget_id: "standard",
+        budget: null,
+        budget_override_id: "grant-1",
+        budget_override: { max_budget: 200 },
+        budget_override_expires_at: expiry,
+      };
+      render(<CustomerOrganizationApps organizationId="org-1" />);
+      const table = within(await screen.findByRole("table", { name: "App budgets" }));
+      expect(await table.findByText("Tier 1")).toBeInTheDocument();
+      expect(table.queryByText("Custom")).not.toBeInTheDocument();
+    },
+  );
+
+  it("labels a non-expiring legacy override as Custom", async () => {
+    bound = true;
+    assigned = true;
+    customAssociation = {
+      ...assignedBudget,
+      budget_override_id: "legacy-1",
+      budget_override: { max_budget: 200 },
+      budget_override_expires_at: null,
+    };
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    const table = within(await screen.findByRole("table", { name: "App budgets" }));
+    expect(await table.findByText("Custom")).toBeInTheDocument();
+  });
+
+  it("edits optional member-default rates without resubmitting a displayed temporary cap", async () => {
+    bound = true;
+    assigned = true;
+    customAssociation = {
+      ...assignedBudget,
+      customer_member_budget_id: "member-policy",
+      effective_customer_member_budget: { max_budget: 150, budget_duration: "1mo", rpm_limit: 20 },
+    };
+    const user = userEvent.setup();
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
+    const section = within(await screen.findByRole("region", { name: "Per-member limits (optional)" }));
+    expect(section.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(150);
+    fireEvent.change(section.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+    await user.click(screen.getByRole("button", { name: "Save app budget" }));
+    await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+    expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
+      budget_id: "standard",
+      customer_member_budget: { rpm_limit: 0 },
+    });
+  });
+
   it("shows current-month app tokens and share of the entire customer spend in the compact table", async () => {
     bound = true;
     assigned = true;

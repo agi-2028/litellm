@@ -15,10 +15,14 @@ import CustomerBudgetCompactFields from "../../customers/_components/CustomerBud
 import { CustomerBudgetEditor } from "../../customers/_components/CustomerLimitsFields";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
 import { useCustomerBudgetForm } from "../../customers/_components/useCustomerBudgetForm";
-import { associationBaseBudget, associationBudgetPatch, hasLegacyAppBudget } from "./appAssociationBudget";
+import {
+  customerBaseBudget,
+  customerBudgetPatch,
+  hasLegacyCustomerBudget,
+} from "../../customers/_components/customerBudgetForm";
 import { ErrorState } from "@/components/shared/ErrorState";
-import AppBudgetLimits from "./AppBudgetLimits";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
+import AppBudgetLimits from "./AppBudgetLimits";
 
 const BUDGET_SOURCES = {
   member_budget: "apps.customBudget",
@@ -177,7 +181,7 @@ function MemberBudgetLoader(props: {
   });
   if (!props.row.budget && inherited.isPending) return <p role="status">{t("apps.loading")}</p>;
   if (inherited.isError) return <ErrorState onRetry={() => void inherited.refetch()} />;
-  const original = associationBaseBudget(
+  const original = customerBaseBudget(
     props.row,
     inherited.data?.effective_customer_member_budget ?? props.app.default_customer_member_budget,
   );
@@ -199,9 +203,12 @@ function MemberBudgetForm({
 }) {
   const { t } = useTranslation();
   const form = useCustomerBudgetForm({
-    initial: { ...compactBudgetEditorFields(original), budgetEnabled: Boolean(row.budget) || hasLegacyAppBudget(row) },
+    initial: {
+      ...compactBudgetEditorFields(original),
+      budgetEnabled: Boolean(row.budget) || hasLegacyCustomerBudget(row),
+    },
     parse: (fields) => {
-      const result = associationBudgetPatch(fields, original, row);
+      const result = customerBudgetPatch(fields, original, row);
       return result.ok ? result : { ok: false, error: t(result.error) };
     },
     write: async (body) => {

@@ -24,3 +24,6 @@ export const appSurchargeValue = (text: string): { ok: true; value: number | nul
   if (!Number.isFinite(percent) || percent < 0 || percent > MAX_SURCHARGE_PERCENT) return { ok: false };
   return { ok: true, value: Number((percent / 100).toFixed(8)) };
 };
+
+export const appOrganizationPresetId = (row?: AppOrganization | null, app?: App) =>
+  row?.budget_id ?? row?.tier_budget_id ?? app?.default_tier_budget_id;

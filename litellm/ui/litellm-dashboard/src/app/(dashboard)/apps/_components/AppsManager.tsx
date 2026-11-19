@@ -1,6 +1,6 @@
 "use client";
 
-import { budgetEditorFields, budgetEditorValue } from "../../customers/_components/customerBudgetForm";
+import { budgetEditorFields, permanentBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
 
 import { useMemo, useState } from "react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
@@ -184,8 +184,8 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
       surcharge: appSurchargeField(app?.customer_margin),
     },
     parse: (fields) => {
-      const budget = budgetEditorValue(fields.budget, app?.budget);
-      const member = budgetEditorValue(fields.member, app?.default_customer_member_budget);
+      const budget = permanentBudgetEditorValue(fields.budget, app?.budget);
+      const member = permanentBudgetEditorValue(fields.member, app?.default_customer_member_budget);
       if (!budget.ok || !member.ok) return { ok: false, error: t("customerPortal.hierarchy.invalidNumber") };
       const margin = appSurchargeValue(fields.surcharge);
       if (!margin.ok) return { ok: false, error: t("apps.surchargeInvalid") };

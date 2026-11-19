@@ -104,7 +104,7 @@ describe("customer hierarchy settings payloads", () => {
     const entity: CustomerHierarchyEntity = { kind: "organization", record: organization };
     expect(buildCustomerHierarchyPatch(entity, { ...customerHierarchyFields(entity), maxBudget: "0" })).toEqual({
       ok: true,
-      patch: { kind: "organization", body: { budget: { ...organization.budget, max_budget: 0 } } },
+      patch: { kind: "organization", body: { budget: { max_budget: 0, budget_duration: "1mo" } } },
     });
   });
 
@@ -127,8 +127,6 @@ describe("customer hierarchy settings payloads", () => {
       patch: {
         body: {
           budget: {
-            max_budget,
-            budget_duration: null,
             budget_limits: [{ budget_duration: "1mo", max_budget: 0 }, windows[1]],
           },
         },
@@ -207,7 +205,7 @@ describe("customer hierarchy settings payloads", () => {
       ok: true,
       patch: {
         kind: "organization",
-        body: { budget: { ...organization.budget, max_budget: 0.00001, soft_budget: null } },
+        body: { budget: { max_budget: 0.00001, budget_duration: "1mo", soft_budget: null } },
       },
     });
   });
@@ -228,7 +226,7 @@ describe("customer hierarchy settings payloads", () => {
       patch: {
         kind: "member",
         body: {
-          budget: { ...memberBase, max_budget: 750, soft_budget: null, allowed_models: null, budget_limits: null },
+          budget: { max_budget: 750, budget_duration: "1mo" },
         },
       },
     });
@@ -237,7 +235,12 @@ describe("customer hierarchy settings payloads", () => {
   it("converts legacy non-expiring custom settings into a base budget", () => {
     const entity: CustomerHierarchyEntity = {
       kind: "member",
-      record: { ...member, budget_override_expires_at: null, effective_budget: { ...memberBase, max_budget: 750 } },
+      record: {
+        ...member,
+        budget_override: { max_budget: 750 },
+        budget_override_expires_at: null,
+        effective_budget: { ...memberBase, max_budget: 1000 },
+      },
     };
     const fields = customerHierarchyFields(entity);
     expect(fields).toMatchObject({ budgetEnabled: true, maxBudget: "750", rpm: "10" });
@@ -252,6 +255,31 @@ describe("customer hierarchy settings payloads", () => {
       ok: true,
       patch: { kind: "member", body: { alias: "Renamed" } },
     });
+  });
+});
+
+it("rejects mixing a new preset with custom limits, including zero", () => {
+  const entity: CustomerHierarchyEntity = { kind: "member", record: member };
+  const fields = { ...customerHierarchyFields(entity), templateId: "template-2", budgetEnabled: true, maxBudget: "0" };
+  expect(buildCustomerHierarchyPatch(entity, fields)).toEqual({ ok: false, error: "conflictingBudgetSources" });
+});
+
+it("requires a preset when disabling a private member budget", () => {
+  const entity: CustomerHierarchyEntity = { kind: "member", record: { ...member, budget_id: "owned" } };
+  const fields = customerHierarchyFields(entity);
+  expect(fields.templateId).toBe("");
+  expect(buildCustomerHierarchyPatch(entity, { ...fields, budgetEnabled: false })).toEqual({
+    ok: false,
+    error: "budgetRequired",
+  });
+});
+
+it("preserves explicit clears and zero when first customizing a preset with a temporary grant", () => {
+  const entity: CustomerHierarchyEntity = { kind: "member", record: member };
+  const fields = { ...customerHierarchyFields(entity), budgetEnabled: true, maxBudget: "0", rpm: "" };
+  expect(buildCustomerHierarchyPatch(entity, fields)).toEqual({
+    ok: true,
+    patch: { kind: "member", body: { budget: { max_budget: 0, budget_duration: "1mo", rpm_limit: null } } },
   });
 });
 

@@ -140,7 +140,6 @@ describe("organization budget dialog", () => {
     expect(new URL(writes()[0].url).pathname).toBe("/management/v1/customer_organizations/org-1");
     expect(await writes()[0].clone().json()).toEqual({
       budget: {
-        ...organization.budget,
         max_budget: 200,
         soft_budget: 150,
         budget_duration: "1mo",
@@ -176,7 +175,7 @@ describe("member budget dialog", () => {
     expect(new URL(writes()[0].url).pathname).toBe("/management/v1/customer_members/member-1");
     expect(await writes()[0].clone().json()).toEqual({
       budget: {
-        ...baseBudget,
+        budget_duration: "1mo",
         max_budget: 200,
         rpm_limit: 0,
         budget_limits: [{ ...baseBudget.budget_limits[0], max_budget: 2400 }, baseBudget.budget_limits[1]],
@@ -218,11 +217,6 @@ describe("member budget dialog", () => {
       budget: {
         max_budget: 750,
         budget_duration: "1mo",
-        budget_limits: null,
-        soft_budget: null,
-        tpm_limit: null,
-        rpm_limit: null,
-        allowed_models: null,
       },
     });
   });
@@ -286,13 +280,7 @@ describe("member budget dialog", () => {
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(await writes()[0].clone().json()).toEqual({
       budget: {
-        max_budget: null,
-        soft_budget: null,
-        budget_duration: duration,
-        budget_limits: null,
         tpm_limit: 2000,
-        rpm_limit: null,
-        allowed_models: null,
       },
     });
   });
@@ -309,8 +297,8 @@ describe("member budget dialog", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Custom reset period" }), { target: { value: "14d" } });
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(await writes()[0].clone().json()).toMatchObject({
-      budget: { max_budget: null, budget_duration: "14d", tpm_limit: 100 },
+    expect(await writes()[0].clone().json()).toEqual({
+      budget: { max_budget: null, budget_duration: "14d" },
     });
   });
 });

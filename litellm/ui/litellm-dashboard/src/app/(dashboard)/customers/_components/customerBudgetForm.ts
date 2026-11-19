@@ -147,16 +147,58 @@ export const permanentBudgetEditorValue = (fields: BudgetEditorFields, original?
   if (!parsed.ok || parsed.value === null) return parsed;
   const initial = compactBudgetEditorValue({ ...compactBudgetEditorFields(original), budgetEnabled: true });
   if (!initial.ok || !initial.value) return parsed;
+  return { ok: true, value: budgetChanges(parsed.value, initial.value) } as const;
+};
+
+export function budgetChanges(value: Budget, initial?: Budget | null): Budget {
   const changed = Object.fromEntries(
-    Object.entries(parsed.value).filter(
-      ([key, value]) => JSON.stringify(value) !== JSON.stringify(initial.value[key as keyof Budget]),
-    ),
+    Object.entries(value).filter(([key, next]) => {
+      const previous = initial?.[key as keyof Budget];
+      return !(next == null && previous == null) && JSON.stringify(next) !== JSON.stringify(previous);
+    }),
   ) as Budget;
   return {
-    ok: true,
-    value: {
-      ...changed,
-      ...(changed.max_budget != null ? { budget_duration: parsed.value.budget_duration } : {}),
-    },
-  } as const;
-};
+    ...changed,
+    ...(changed.max_budget != null ? { budget_duration: value.budget_duration } : {}),
+  };
+}
+
+interface BudgetAssignment {
+  budget?: Budget | null;
+  budget_override?: Budget | null;
+  budget_override_expires_at?: string | null;
+}
+
+export const hasLegacyCustomerBudget = (row?: BudgetAssignment | null) =>
+  row?.budget_override != null && row.budget_override_expires_at == null;
+
+export function customerBaseBudget(row: BudgetAssignment | null, inherited?: Budget | null): Budget | null {
+  const base = row?.budget ?? inherited ?? null;
+  if (!hasLegacyCustomerBudget(row)) return base;
+  const override = row!.budget_override!;
+  const windows = new Map(
+    (override.max_budget != null ? [] : base?.budget_limits ?? []).map((window) => [window.budget_duration, window]),
+  );
+  const merged = new Map([
+    ...windows,
+    ...(override.budget_limits ?? []).map((window) => [window.budget_duration, window] as const),
+  ]);
+  return {
+    ...base,
+    ...Object.fromEntries(Object.entries(override).filter(([, value]) => value != null)),
+    allowed_models: override.allowed_models?.length ? override.allowed_models : base?.allowed_models,
+    budget_limits: merged.size ? [...merged.values()] : null,
+  };
+}
+
+export function customerBudgetPatch(fields: BudgetEditorFields, original: Budget | null, row: BudgetAssignment | null) {
+  const parsed = hasLegacyCustomerBudget(row)
+    ? compactBudgetEditorValue(fields, original)
+    : permanentBudgetEditorValue(fields, original);
+  return parsed.ok
+    ? ({
+        ok: true,
+        value: { budget: parsed.value, ...(hasLegacyCustomerBudget(row) ? { budget_override: null } : {}) },
+      } as const)
+    : parsed;
+}
