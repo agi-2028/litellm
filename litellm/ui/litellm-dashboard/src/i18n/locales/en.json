@@ -21054,7 +21054,7 @@
       "identifier": "Identifier",
       "budgetTitle": "Budget and limits",
       "budgetHint": "Leave a limit blank for no limit. Zero is a valid limit.",
-      "memberBudgetHint": "Blank limits inherit from the budget template. Without a template, blank means no limit.",
+      "memberBudgetHint": "Choose a member budget group or set permanent custom limits. Blank custom limits mean no limit. Temporary budget increases remain unchanged.",
       "budgetEnabled": "Set custom limits",
       "maxBudget": "Spend limit (USD)",
       "softBudget": "Soft budget (USD)",

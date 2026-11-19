@@ -48,9 +48,6 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
           organization: props.organization.alias || props.organization.customer_org_id,
         },
       );
-  const defaultGroup = props.organization.default_budgets.find(
-    (group) => group.budget_id === props.organization.default_budget_template_id,
-  );
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -141,17 +138,11 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
               ? "customerPortal.hierarchy.memberLimitsHelp"
               : "customerPortal.hierarchy.teamLimitsHelp",
           )}
-          customHint={
-            props.kind === "member" && defaultGroup
-              ? t("customerPortal.hierarchy.customMemberLimitsHelp", { group: defaultGroup.name })
-              : undefined
-          }
           onChange={(patch) =>
             setFields((current) => ({
               ...current,
               ...(props.kind === "team" ? { budgetEnabled: true } : {}),
               ...(patch.budgetMode ? { budgetEnabled: patch.budgetMode === "custom" } : {}),
-              ...(patch.budgetMode === "custom" ? { templateId: defaultGroup?.budget_id ?? "" } : {}),
               ...(patch.budgetId !== undefined ? { templateId: patch.budgetId } : {}),
               ...(patch.budgetAmount !== undefined ? { maxBudget: patch.budgetAmount } : {}),
               ...(patch.budgetDuration !== undefined ? { budgetDuration: patch.budgetDuration } : {}),

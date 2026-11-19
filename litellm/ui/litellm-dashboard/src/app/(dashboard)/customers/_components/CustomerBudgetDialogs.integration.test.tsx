@@ -35,7 +35,7 @@ const organization: Organization = {
   },
 };
 const memberOrganization: Organization = { ...audit, customer_org_id: "org-1", default_budgets: [standard] };
-const override = {
+const baseBudget = {
   max_budget: 100,
   budget_duration: "1mo",
   soft_budget: 80,
@@ -53,10 +53,11 @@ const member: Member = {
   parent_org_id: "org-1",
   parent_team_ids: ["team-1"],
   alias: "Example member",
-  budget_id: "standard",
-  budget_override: override,
+  budget_id: "owned",
+  budget: baseBudget,
+  budget_override: { max_budget: 1000, budget_duration: "1mo", rpm_limit: 100 },
   budget_override_expires_at: "2027-01-02T04:05:06.000Z",
-  effective_budget: override,
+  effective_budget: { ...baseBudget, max_budget: 1000, rpm_limit: 100 },
 };
 const fetchMock = vi.fn<typeof fetch>();
 const writes = () =>
@@ -162,7 +163,7 @@ describe("organization budget dialog", () => {
 });
 
 describe("member budget dialog", () => {
-  it("saves monthly and yearly overrides while preserving additional limits, models and expiry", async () => {
+  it("saves monthly and yearly base limits without changing the active temporary grant", async () => {
     const user = await openBudget("member");
     const dialog = within(await screen.findByRole("dialog", { name: "Edit member budget", exact: true }));
     expect(await dialog.findByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
@@ -174,16 +175,16 @@ describe("member budget dialog", () => {
     expect(writes()).toHaveLength(1);
     expect(new URL(writes()[0].url).pathname).toBe("/management/v1/customer_members/member-1");
     expect(await writes()[0].clone().json()).toEqual({
-      budget_override: {
-        ...override,
+      budget: {
+        ...baseBudget,
         max_budget: 200,
         rpm_limit: 0,
-        budget_limits: [{ ...override.budget_limits[0], max_budget: 2400 }, override.budget_limits[1]],
+        budget_limits: [{ ...baseBudget.budget_limits[0], max_budget: 2400 }, baseBudget.budget_limits[1]],
       },
     });
   });
 
-  it("selects a preset and removes the custom override and its expiry", async () => {
+  it("selects a preset without removing the temporary grant or its expiry", async () => {
     const user = await openBudget("member");
     const source = await screen.findByRole("combobox", { name: "Member limits" });
     await chooseSelectOption(user, source, /^Standard/);
@@ -191,25 +192,46 @@ describe("member budget dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(await writes()[0].clone().json()).toEqual({
-      budget_override: null,
-      budget_override_expires_at: null,
+      budget_id: "standard",
     });
   });
 
-  it("detaches the preset without changing existing custom limits or expiry", async () => {
+  it("replaces a preset monthly cap with a permanent custom cap", async () => {
+    const presetMember = { ...member, budget_id: "standard", budget: { max_budget: 500, budget_duration: "1mo" } };
+    const serve = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) =>
+      new URL((input as Request).url).pathname.endsWith("/customer_members/member-1")
+        ? json(presetMember)
+        : serve(input, init),
+    );
     const user = await openBudget("member");
-    await chooseSelectOption(user, await screen.findByRole("combobox", { name: "Member limits" }), /^No template/);
-    expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
+    await chooseSelectOption(
+      user,
+      await screen.findByRole("combobox", { name: "Member limits" }),
+      "Enter custom limits instead",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(500);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "750" } });
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(await writes()[0].clone().json()).toEqual({ budget_id: null });
+    expect(await writes()[0].clone().json()).toEqual({
+      budget: {
+        max_budget: 750,
+        budget_duration: "1mo",
+        budget_limits: null,
+        soft_budget: null,
+        tpm_limit: null,
+        rpm_limit: null,
+        allowed_models: null,
+      },
+    });
   });
 
   it("reopens the saved budget before background reads finish", async () => {
     const updated = {
       ...member,
       updated_at: "2026-11-19T00:00:00Z",
-      budget_override: { ...override, max_budget: 250 },
+      budget: { ...baseBudget, max_budget: 250 },
     };
     const refresh = Promise.withResolvers<Response>();
     const serve = fetchMock.getMockImplementation()!;
@@ -242,7 +264,8 @@ describe("member budget dialog", () => {
   it.each([null, "7d"])("preserves the existing reset period %s when saving rate-only limits", async (duration) => {
     const inheritedMember = {
       ...member,
-      budget_override: duration ? { budget_duration: duration } : null,
+      budget: { budget_duration: duration },
+      budget_override: null,
       budget_override_expires_at: null,
     };
     fetchMock.mockImplementation(async (input) =>
@@ -262,7 +285,7 @@ describe("member budget dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(await writes()[0].clone().json()).toEqual({
-      budget_override: {
+      budget: {
         max_budget: null,
         soft_budget: null,
         budget_duration: duration,
@@ -275,7 +298,7 @@ describe("member budget dialog", () => {
   });
 
   it("saves an edited reset period after clearing the custom spend cap", async () => {
-    const custom = { ...member, budget_override: { max_budget: 20, budget_duration: "7d", tpm_limit: 100 } };
+    const custom = { ...member, budget: { max_budget: 20, budget_duration: "7d", tpm_limit: 100 } };
     fetchMock.mockImplementation(async (input) =>
       json(new URL((input as Request).url).pathname.endsWith("/customer_members/member-1") ? custom : organization),
     );
@@ -287,7 +310,7 @@ describe("member budget dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(await writes()[0].clone().json()).toMatchObject({
-      budget_override: { max_budget: null, budget_duration: "14d", tpm_limit: 100 },
+      budget: { max_budget: null, budget_duration: "14d", tpm_limit: 100 },
     });
   });
 });

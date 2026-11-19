@@ -11,16 +11,18 @@ import {
   CUSTOMER_HIERARCHY_FORM_ERRORS,
   type CustomerHierarchyEntity,
   type CustomerHierarchyFields,
+  type Organization,
 } from "./customerHierarchyForms";
 
 export function useCustomerHierarchyForm(
   entity: CustomerHierarchyEntity,
+  organization: Organization,
   onSaved: () => void,
   onPendingChange?: (pending: boolean) => void,
 ) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const initial = customerHierarchyFields(entity);
+  const initial = customerHierarchyFields(entity, organization);
   const [fields, setFields] = useState(initial);
   const { pending, error, setError, run } = useCustomerBudgetSave(onPendingChange);
   const update = <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) => {
@@ -34,7 +36,7 @@ export function useCustomerHierarchyForm(
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pending) return;
-    const result = buildCustomerHierarchyPatch(entity, fields);
+    const result = buildCustomerHierarchyPatch(entity, fields, organization);
     if (!result.ok) return setError(t(CUSTOMER_HIERARCHY_FORM_ERRORS[result.error]));
     await run(async () => {
       const saved = await saveCustomerHierarchy(customerEntityId(entity), result.patch);

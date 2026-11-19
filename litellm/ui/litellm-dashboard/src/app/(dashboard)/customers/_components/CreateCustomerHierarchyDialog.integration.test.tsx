@@ -81,7 +81,7 @@ describe("CreateCustomerHierarchyDialog", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "90000" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "300" } });
     await user.click(screen.getByRole("combobox", { name: "Reset period" }));
-    await user.click(screen.getByRole("option", { name: "/ year" }));
+    await user.click(await screen.findByRole("option", { name: "/ year" }));
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
     await user.keyboard("{Escape}");
@@ -140,7 +140,6 @@ describe("CreateCustomerHierarchyDialog", () => {
         parent_team_ids: ["team-1"],
         alias: "Jamie",
         budget_id: "standard-template",
-        budget_override: null,
       },
     });
   });
@@ -165,7 +164,7 @@ describe("CreateCustomerHierarchyDialog", () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
-  it("submits custom limits with the default group as the fallback for blank fields", async () => {
+  it("creates permanent custom limits without attaching the default group", async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(json({ customer_member_id: "custom-member", parent_team_ids: ["team-1"] }));
     render(
@@ -184,7 +183,6 @@ describe("CreateCustomerHierarchyDialog", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "25" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "20000" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "100" } });
-    expect(screen.getByRole("dialog")).toHaveTextContent("Blank fields keep the limits from Standard.");
     await user.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(await requestBody()).toMatchObject({
@@ -193,8 +191,8 @@ describe("CreateCustomerHierarchyDialog", () => {
         parent_org_id: "org-1",
         parent_team_ids: ["team-1"],
         alias: "Jamie",
-        budget_id: "standard-template",
-        budget_override: { max_budget: 25, budget_duration: "1mo", tpm_limit: 20000, rpm_limit: 100 },
+        budget_id: null,
+        budget: { max_budget: 25, budget_duration: "1mo", tpm_limit: 20000, rpm_limit: 100 },
       },
     });
   });
@@ -223,7 +221,7 @@ describe("CreateCustomerHierarchyDialog", () => {
     expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
-    expect(await requestBody()).toMatchObject({ body: { budget_id: "power", budget_override: null } });
+    expect(await requestBody()).toMatchObject({ body: { budget_id: "power" } });
   });
 
   it.each(["team", "member"] as const)("surfaces the free-tier 403 detail when creating a %s", async (kind) => {

@@ -57,6 +57,7 @@ const member: Member = {
   parent_team_ids: ["team-1"],
   alias: "Member One",
   budget_id: "template-1",
+  budget: { max_budget: 10, budget_duration: "1mo" },
   budget_override_id: "override-1",
   budget_override: { max_budget: 20 },
   effective_budget: { max_budget: 20 },
@@ -271,7 +272,7 @@ describe("CustomerHierarchySettings", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
-      budget_override: {
+      budget: {
         budget_limits: null,
         max_budget: 75,
         soft_budget: null,
@@ -299,74 +300,44 @@ describe("CustomerHierarchySettings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("should identify an unavailable stored template instead of displaying No template", () => {
-    render(settings({ kind: "member", record: { ...member, budget_id: "retired-template", budget_override: null } }));
-    expect(screen.getByRole("combobox", { name: "Budget template" })).toHaveTextContent(
-      "Unavailable template (retired-template)",
-    );
-  });
-
-  it("detaches a member from its template while retaining custom limits", async () => {
+  it("shows an owned base as Custom and preserves its temporary grant when selecting a preset", async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(json(member));
-    render(settings({ kind: "member", record: member }));
-    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), /^No template/);
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(await lastRequest().clone().json()).toEqual({ budget_id: null });
-  });
-
-  it("should clear the member override and its expiry without changing the template", async () => {
-    const user = userEvent.setup();
-    fetchMock.mockResolvedValue(json(member));
-    render(settings({ kind: "member", record: member }));
+    const custom = { ...member, budget_id: "owned", budget: { max_budget: 15, budget_duration: "1mo" } };
+    fetchMock.mockResolvedValue(json(custom));
+    render(settings({ kind: "member", record: custom }));
+    expect(screen.getByRole("combobox", { name: "Budget template" })).toHaveTextContent("Custom");
+    expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(15);
     await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), /^Standard/);
     expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(new URL(lastRequest().url).pathname).toBe("/management/v1/customer_members/member-1");
-    expect(await lastRequest().clone().json()).toEqual({ budget_override: null, budget_override_expires_at: null });
+    expect(await lastRequest().clone().json()).toEqual({ budget_id: "template-1" });
   });
 
-  it("should explain that blank member limits inherit from the selected template", () => {
-    render(settings({ kind: "member", record: member }));
-    expect(
-      screen.getByText("Blank limits inherit from the budget template. Without a template, blank means no limit."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Leave a limit blank for no limit. Zero is a valid limit.")).not.toBeInTheDocument();
-  });
-
-  it("should override only the entered member limit without freezing inherited template permissions", async () => {
-    const user = userEvent.setup();
-    const inheritedMember = {
+  it("converts legacy permanent overrides without changing untouched inherited limits", async () => {
+    const legacy = {
       ...member,
-      budget_override: null,
-      effective_budget: { max_budget: 100, rpm_limit: 10, allowed_models: ["openai/gpt-4.1"] },
+      budget_override_expires_at: null,
+      effective_budget: { max_budget: 20, budget_duration: "1mo", rpm_limit: 10 },
     };
-    fetchMock.mockResolvedValue(json(inheritedMember));
-    render(settings({ kind: "member", record: inheritedMember }));
-    await chooseSelectOption(
-      user,
-      screen.getByRole("combobox", { name: "Budget template" }),
-      "Enter custom limits instead",
-    );
-    expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(null);
-    expect(screen.getByRole("spinbutton", { name: "Requests per minute" })).toHaveValue(null);
-    act(() =>
-      fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "50" } }),
-    );
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    fetchMock.mockResolvedValue(json(legacy));
+    render(settings({ kind: "member", record: legacy }));
+    expect(screen.getByRole("combobox", { name: "Budget template" })).toHaveTextContent("Custom");
+    expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(20);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
-      budget_override: {
+      budget: {
         budget_limits: null,
         max_budget: 50,
         soft_budget: null,
         tpm_limit: null,
-        rpm_limit: null,
-        budget_duration: null,
+        rpm_limit: 10,
+        budget_duration: "1mo",
         allowed_models: null,
       },
+      budget_override: null,
     });
   });
 

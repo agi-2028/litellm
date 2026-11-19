@@ -51,16 +51,10 @@ export default function CustomerHierarchyBudgetFields({
     );
   }
   const custom = fields.budgetEnabled || !fields.templateId;
-  const templateSource = custom ? "custom" : `profile:${fields.templateId}`;
-  const source = fields.templateId ? templateSource : "none";
+  const source = custom ? "custom" : `profile:${fields.templateId}`;
   const customMember = kind === "member" && custom;
   const selectSource = (value: string | null) => {
     if (value === "custom") return update("budgetEnabled", true);
-    if (value === "none") {
-      update("templateId", "");
-      update("budgetEnabled", true);
-      return;
-    }
     if (!value?.startsWith("profile:")) return;
     update("templateId", value.slice("profile:".length));
     update("budgetEnabled", false);
@@ -75,23 +69,6 @@ export default function CustomerHierarchyBudgetFields({
     update("allowedModels", next.allowedModels);
     update("budgetWindows", next.budgetWindows);
   };
-  const expiry = (
-    <div className="space-y-1.5">
-      <Label htmlFor={`${idPrefix}-expiry`} className="font-normal text-muted-foreground">
-        {t("customerPortal.hierarchy.overrideExpiry")}
-      </Label>
-      <Input
-        id={`${idPrefix}-expiry`}
-        type="datetime-local"
-        value={fields.overrideExpiry}
-        onChange={(event) => update("overrideExpiry", event.target.value)}
-        aria-describedby={`${idPrefix}-expiry-hint`}
-      />
-      <p id={`${idPrefix}-expiry-hint`} className="text-xs text-muted-foreground">
-        {t("customerPortal.hierarchy.overrideExpiryHint")}
-      </p>
-    </div>
-  );
   return (
     <section className={compact ? "space-y-4" : "space-y-4 border-t pt-6"} aria-labelledby={`${idPrefix}-budget-title`}>
       <div>
@@ -115,7 +92,6 @@ export default function CustomerHierarchyBudgetFields({
           title={t(compact ? "customerPortal.hierarchy.memberLimits" : "customerPortal.hierarchy.template")}
           disabled={false}
           onChange={selectSource}
-          noTemplate
         />
       )}
       {kind === "team" && (
@@ -131,26 +107,16 @@ export default function CustomerHierarchyBudgetFields({
         </div>
       )}
       {customMember && compact && (
-        <>
-          <CustomerBudgetCompactFields
-            fields={fields}
-            original={original}
-            onChange={updateCompact}
-            disabled={false}
-            id={idPrefix}
-          />
-          {expiry}
-        </>
+        <CustomerBudgetCompactFields
+          fields={fields}
+          original={original}
+          onChange={updateCompact}
+          disabled={false}
+          id={idPrefix}
+        />
       )}
       {customMember && !compact && (
-        <CustomerCustomBudgetFields
-          fields={fields}
-          onChange={updateCustom}
-          idPrefix={idPrefix}
-          inheritBlank={Boolean(fields.templateId)}
-        >
-          {expiry}
-        </CustomerCustomBudgetFields>
+        <CustomerCustomBudgetFields fields={fields} onChange={updateCustom} idPrefix={idPrefix} />
       )}
       {kind === "team" && fields.budgetEnabled && (
         <CustomerBudgetFields fields={fields} onChange={update} idPrefix={idPrefix} />

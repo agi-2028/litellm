@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "./CustomerBudgetDialog";
 import CustomerHierarchyBudgetFields from "./CustomerHierarchyBudgetFields";
 import { useCustomerHierarchyForm } from "./useCustomerHierarchyForm";
-import type { CustomerHierarchyEntity, Organization } from "./customerHierarchyForms";
+import { customerHierarchyBudget, type CustomerHierarchyEntity, type Organization } from "./customerHierarchyForms";
 
 function BudgetForm({
   entity,
@@ -20,7 +20,7 @@ function BudgetForm({
   onPendingChange: (pending: boolean) => void;
   onClose: () => void;
 }) {
-  const form = useCustomerHierarchyForm(entity, onClose, onPendingChange);
+  const form = useCustomerHierarchyForm(entity, organization, onClose, onPendingChange);
   return (
     <CustomerBudgetForm
       pending={form.pending}
@@ -36,7 +36,7 @@ function BudgetForm({
         onChange={form.update}
         idPrefix="edit-customer-budget"
         compact
-        original={entity.kind === "member" ? entity.record.budget_override : entity.record.budget}
+        original={customerHierarchyBudget(entity)}
       />
     </CustomerBudgetForm>
   );

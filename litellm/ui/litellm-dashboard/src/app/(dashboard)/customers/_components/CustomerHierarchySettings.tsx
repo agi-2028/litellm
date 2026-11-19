@@ -57,7 +57,7 @@ const DELETE_MESSAGES = {
 function SettingsForm({ entity, organization, onSaved, onDeleted }: Props) {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const form = useCustomerHierarchyForm(entity, onSaved);
+  const form = useCustomerHierarchyForm(entity, organization, onSaved);
   const { fields, update, reset, dirty, error, save } = form;
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
