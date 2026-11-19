@@ -291,7 +291,7 @@ describe("customer hierarchy management", () => {
       const progress = await within(table).findByRole("progressbar", { name: "Monthly spend / limit" });
       expect(progress).toHaveAttribute("aria-valuenow", "30");
       expect(within(table).getByText("$3.00 / $10.00")).toBeInTheDocument();
-      expect(within(table).getByText("$7.00 remains")).toBeInTheDocument();
+      expect(within(table).getByText("$7.00 left")).toBeInTheDocument();
       expect(within(table).getByText("$7.00 / $100.00")).toBeInTheDocument();
       expect(within(table).getByRole("meter", { name: "Share of customer spend" })).toHaveAttribute(
         "aria-valuenow",

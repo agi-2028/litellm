@@ -15,8 +15,8 @@ const usageHref = createSerializer({ org: parseAsString, from: parseAsString, to
 const SORT_DIRECTIONS = ["ascending", "descending"] as const;
 const COLUMNS = [
   { id: "customer", label: "customerPortal.list.columns.customer" },
-  { id: "group", label: "customerPortal.organizationGroups.groupBadge" },
-  { id: "spend", label: "customerPortal.analytics.monthlySpend" },
+  { id: "group", label: "customerPortal.list.columns.tier" },
+  { id: "spend", label: "customerPortal.list.columns.monthlySpend" },
   { id: "budget", label: "customerPortal.hierarchy.maxBudget" },
   { id: "share", label: "customerPortal.list.columns.overallSpendShare" },
   { id: "status", label: "customerPortal.list.columns.status" },
@@ -62,7 +62,7 @@ export default function CustomerOrganizationsTable({
               <TableHead
                 key={id}
                 aria-sort={active ? direction : "none"}
-                className={cn("px-4", id === "spend" && "min-w-60", id === "status" && "text-right")}
+                className={cn("px-4", id === "spend" && "w-[30%] min-w-80", id === "status" && "text-right")}
               >
                 <Button
                   variant="ghost"

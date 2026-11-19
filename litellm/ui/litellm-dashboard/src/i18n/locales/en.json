@@ -21137,6 +21137,8 @@
       "overallUsage": "Overall customer usage",
       "columns": {
         "customer": "$t(customerPortal.entities.organization)",
+        "tier": "Tier",
+        "monthlySpend": "Monthly spend",
         "overallSpendShare": "Overall spend share",
         "spend": "Spend",
         "requests": "Requests",
@@ -21352,7 +21354,7 @@
       "withinMonthlyBudget": "Within monthly limit",
       "monthlyLimitAmount": "Monthly limit: {{amount}}",
       "yearlyLimitAmount": "Yearly limit: {{amount}}",
-      "budgetRemaining": "{{amount}} remains",
+      "budgetRemaining": "{{amount}} left",
       "budgetOver": "{{amount}} over",
       "calendarMonth": "Current UTC calendar month",
       "budgetUsageUnavailable": "Budget usage unavailable",

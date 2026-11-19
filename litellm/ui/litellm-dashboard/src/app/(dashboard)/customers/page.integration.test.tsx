@@ -157,7 +157,7 @@ describe("customer organization overview", () => {
     ];
     renderWithProviders(<CustomersPage />);
     await screen.findByRole("cell", { name: "Growth", exact: true });
-    expect(screen.getByRole("columnheader", { name: "Budget group" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Tier" })).toBeInTheDocument();
     expect(
       within(screen.getByRole("row", { name: /Customer 00/ })).getByRole("cell", { name: "Growth", exact: true }),
     ).toBeInTheDocument();
