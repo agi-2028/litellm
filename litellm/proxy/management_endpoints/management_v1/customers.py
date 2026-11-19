@@ -234,7 +234,9 @@ async def get_customer_organization_budget_groups(
     "/customer_organization_budget_groups",
     response_model=BudgetGroups,
     description="Save the complete organization budget group list with its expected_revision. "
-    "default_budget_template must be null. Stale revisions or referenced deletions return 409. Proxy admins only.",
+    "default_budget_template names the group assigned to new organizations that omit budget and budget_id, "
+    "or null for no organization-level limit. Existing organizations are unchanged by default selection. "
+    "Stale revisions or referenced deletions return 409. Proxy admins only.",
 )
 @management_endpoint_wrapper
 async def configure_customer_organization_budget_groups(
@@ -307,7 +309,8 @@ async def get_customer_portal_limits(
     "/customer_organizations",
     status_code=201,
     response_model=Organization,
-    description="Create a customer organization with resolved budgets. Proxy admins only.",
+    description="Create a customer organization with resolved budgets. Omit budget and budget_id to use the configured "
+    "organization budget group default. Explicit null opts out of the default. Proxy admins only.",
 )
 @management_endpoint_wrapper
 async def create_customer_organization(

@@ -54,12 +54,13 @@ describe("buildCustomerOrganizationBody", () => {
     });
   });
 
-  it("allows the server to generate an ID and omits an unlimited organization budget", () => {
+  it("allows the server to generate an ID and explicitly opts an unlimited custom budget out of the default", () => {
     const result = buildCustomerOrganizationBody({ ...fields(), customerOrgId: "  " });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.body).not.toHaveProperty("customer_org_id");
     expect(result.body).not.toHaveProperty("budget");
+    expect(result.body.budget_id).toBeNull();
     expect(result.body.default_budget_template).toBe("default_user");
   });
 

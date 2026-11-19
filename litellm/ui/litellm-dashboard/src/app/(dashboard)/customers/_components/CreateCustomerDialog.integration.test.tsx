@@ -9,6 +9,7 @@ const creations: unknown[] = [];
 let rejectCreation = false;
 let freeTierReached = false;
 let catalogStatus = 200;
+let defaultBudgetId: string | null = null;
 const onCreated = vi.fn();
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -28,6 +29,7 @@ beforeEach(() => {
   rejectCreation = false;
   freeTierReached = false;
   catalogStatus = 200;
+  defaultBudgetId = null;
   vi.mocked(toast.error).mockClear();
   onCreated.mockClear();
   testQueryClient.clear();
@@ -41,6 +43,7 @@ beforeEach(() => {
       if (url.pathname === "/management/v1/customer_organization_budget_groups")
         return Response.json(
           {
+            default_budget_template_id: defaultBudgetId,
             default_budgets: [
               { budget_id: "saved-group", name: "100" },
               { budget_id: "custom", name: "Custom" },
@@ -80,6 +83,23 @@ afterEach(() => {
 });
 
 describe("CreateCustomerDialog", () => {
+  it.each([false, true])("starts with the organization default and respects a custom opt-out (%s)", async (custom) => {
+    defaultBudgetId = "named-group";
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    const profile = screen.getByRole("combobox", { name: "Customer organization limits" });
+    await waitFor(() => expect(profile).toHaveTextContent("Growth"));
+    fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Example customer" } });
+    if (custom) {
+      await user.click(profile);
+      await user.click(await screen.findByRole("option", { name: "Enter custom limits instead" }));
+    }
+    await user.click(screen.getByRole("button", { name: "Create customer" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("created-org"));
+    expect(creations[0]).toMatchObject({ budget_id: custom ? null : "named-group" });
+    expect(creations[0]).not.toHaveProperty("budget");
+  });
+
   it.each([
     ["100", "saved-group"],
     ["Growth", "named-group"],
@@ -162,6 +182,7 @@ describe("CreateCustomerDialog", () => {
     freeTierReached = true;
     renderWithProviders(<Harness />);
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Sixth customer" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create customer" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Create customer" }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(

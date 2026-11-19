@@ -97,14 +97,12 @@ export default function CustomerBudgetGroups(props: Props) {
     }
   };
   return (
-    <form onSubmit={save} className={props.global ? "max-w-3xl space-y-5" : "w-full space-y-5"}>
+    <form onSubmit={save} className="w-full space-y-5">
       <fieldset disabled={pending} className="min-w-0">
         <CustomerBudgetGroupsEditor
-          layout={props.global ? "cards" : "table"}
           memberGroups={!props.global}
           appGroups={props.global && props.scope === "app"}
           groups={groups}
-          showHeading={false}
           defaultGroupId={defaultGroupId}
           disabled={pending}
           onChange={changeGroups}

@@ -135,11 +135,13 @@ export function buildCustomerOrganizationBody(fields: CustomerOrganizationFields
   const budget = optionalAmount(fields.budgetAmount);
   const tpm = optionalAmount(fields.tpm);
   const rpm = optionalAmount(fields.rpm);
+  const hasCustomBudget = !useProfile && [budget, tpm, rpm].some((value) => value !== null);
   const body = {
     alias: fields.name.trim(),
     ...(fields.customerOrgId.trim() ? { customer_org_id: fields.customerOrgId.trim() } : {}),
     ...(useProfile ? { budget_id: fields.budgetId } : {}),
-    ...(!useProfile && [budget, tpm, rpm].some((value) => value !== null)
+    ...(!useProfile && !hasCustomBudget ? { budget_id: null } : {}),
+    ...(hasCustomBudget
       ? {
           budget: {
             ...(budget !== null ? { max_budget: budget, budget_duration: fields.budgetDuration } : {}),

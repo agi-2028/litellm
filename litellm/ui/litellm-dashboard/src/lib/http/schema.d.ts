@@ -10049,7 +10049,7 @@ export interface paths {
         head?: never;
         /**
          * Configure Customer Organization Budget Groups
-         * @description Save the complete organization budget group list with its expected_revision. default_budget_template must be null. Stale revisions or referenced deletions return 409. Proxy admins only.
+         * @description Save the complete organization budget group list with its expected_revision. default_budget_template names the group assigned to new organizations that omit budget and budget_id, or null for no organization-level limit. Existing organizations are unchanged by default selection. Stale revisions or referenced deletions return 409. Proxy admins only.
          */
         patch: operations["configure_customer_organization_budget_groups_management_v1_customer_organization_budget_groups_patch"];
         trace?: never;
@@ -10069,7 +10069,7 @@ export interface paths {
         put?: never;
         /**
          * Create Customer Organization
-         * @description Create a customer organization with resolved budgets. Proxy admins only.
+         * @description Create a customer organization with resolved budgets. Omit budget and budget_id to use the configured organization budget group default. Explicit null opts out of the default. Proxy admins only.
          */
         post: operations["create_customer_organization_management_v1_customer_organizations_post"];
         delete?: never;

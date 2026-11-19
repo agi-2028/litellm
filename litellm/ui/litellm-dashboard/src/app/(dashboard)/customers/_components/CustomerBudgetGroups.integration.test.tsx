@@ -55,16 +55,8 @@ describe("CustomerBudgetGroups", () => {
         <CustomerBudgetGroups organization={organization} onSaved={onSaved} />
       ),
     );
-    const tokens = global
-      ? within(screen.getByRole("group", { name: "Group 1 rate limits" })).getByRole("spinbutton", {
-          name: "Tokens per minute",
-        })
-      : screen.getByRole("spinbutton", { name: "Group 1 tokens per minute" });
-    const requests = global
-      ? within(screen.getByRole("group", { name: "Group 1 rate limits" })).getByRole("spinbutton", {
-          name: "Requests per minute",
-        })
-      : screen.getByRole("spinbutton", { name: "Group 1 requests per minute" });
+    const tokens = screen.getByRole("spinbutton", { name: "Group 1 tokens per minute" });
+    const requests = screen.getByRole("spinbutton", { name: "Group 1 requests per minute" });
     fireEvent.change(tokens, { target: { value: "50000" } });
     fireEvent.change(requests, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
@@ -86,9 +78,19 @@ describe("CustomerBudgetGroups", () => {
   });
 
   it.each([
-    ["Organization budget groups", "/management/v1/customer_organization_budget_groups"],
-    ["App × customer organization budget groups", "/management/v1/app_customer_organization_budget_groups"],
-  ])("saves only the %s catalog in Settings", async (title, endpoint) => {
+    [
+      "Organization budget groups",
+      "Overall Organization Budget Groups",
+      "/management/v1/customer_organization_budget_groups",
+      "organization",
+    ],
+    [
+      "App × customer organization budget groups",
+      "Per-App Organization Budget Groups",
+      "/management/v1/app_customer_organization_budget_groups",
+      "app",
+    ],
+  ])("saves only the %s catalog in Settings", async (title, tabTitle, endpoint, tab) => {
     const user = userEvent.setup();
     const catalog = { ...organization, default_budget_template_id: null, default_budgets: [] };
     fetchMock.mockImplementation(async (input) => {
@@ -105,8 +107,9 @@ describe("CustomerBudgetGroups", () => {
           : catalog,
       );
     });
-    renderWithProviders(<CustomerSettings />);
-    const editor = within(await screen.findByRole("region", { name: title }));
+    renderWithProviders(<CustomerSettings />, { searchParams: `?tab=${tab}` });
+    expect(screen.getByRole("tab", { name: tabTitle })).toHaveAttribute("aria-selected", "true");
+    const editor = within(await screen.findByRole("tabpanel", { name: tabTitle }));
     await user.click(await editor.findByRole("button", { name: "Add budget group" }));
     fireEvent.change(editor.getByLabelText("Group name 1"), { target: { value: "Starter" } });
     fireEvent.change(editor.getByLabelText("Group 1 monthly budget (USD)"), { target: { value: "0" } });
@@ -122,9 +125,13 @@ describe("CustomerBudgetGroups", () => {
       title === "Organization budget groups"
         ? "App × customer organization budget groups"
         : "Organization budget groups";
+    const otherTab =
+      tab === "organization" ? "Per-App Organization Budget Groups" : "Overall Organization Budget Groups";
+    await user.click(screen.getByRole("tab", { name: otherTab }));
     expect(
       within(screen.getByRole("region", { name: otherTitle })).queryByDisplayValue("Starter"),
     ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: tabTitle }));
     expect(await request.clone().json()).toEqual({
       expected_revision: organization.budget_groups_revision,
       default_budget_template: null,
@@ -179,6 +186,64 @@ describe("CustomerBudgetGroups", () => {
         { name: "New", cap_policy: "pause_until_reset", budget_limits: [{ budget_duration: "1mo", max_budget: 30 }] },
       ],
     });
+  });
+
+  it("keeps independent drafts when switching URL tabs and falls back from an unknown tab", async () => {
+    const user = userEvent.setup();
+    const onUrlUpdate = vi.fn();
+    fetchMock.mockImplementation(async () => json({ ...organization, default_budget_template_id: null }));
+    renderWithProviders(<CustomerSettings />, { searchParams: "?tab=unknown&source=portal", onUrlUpdate });
+    expect(screen.getByRole("tab", { name: "Overall Organization Budget Groups" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const overall = within(await screen.findByRole("region", { name: "Organization budget groups" }));
+    fireEvent.change(overall.getByLabelText("Group name 1"), { target: { value: "Overall draft" } });
+    await user.click(screen.getByRole("tab", { name: "Per-App Organization Budget Groups" }));
+    await waitFor(() =>
+      expect(onUrlUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          queryString: "?tab=app&source=portal",
+          options: expect.objectContaining({ history: "push" }),
+        }),
+      ),
+    );
+    const perApp = within(screen.getByRole("region", { name: "App × customer organization budget groups" }));
+    expect(perApp.getByLabelText("Group name 1")).toHaveValue("Standard");
+    fireEvent.change(perApp.getByLabelText("Group name 1"), { target: { value: "App draft" } });
+    await user.click(screen.getByRole("tab", { name: "Overall Organization Budget Groups" }));
+    expect(overall.getByLabelText("Group name 1")).toHaveValue("Overall draft");
+    await user.click(screen.getByRole("tab", { name: "Per-App Organization Budget Groups" }));
+    expect(perApp.getByLabelText("Group name 1")).toHaveValue("App draft");
+    expect(fetchMock.mock.calls.every(([input]) => (input as Request).method === "GET")).toBe(true);
+  });
+
+  it("saves a default for new organizations and lets No limit clear it", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (input) => {
+      const request = input as Request;
+      const body = request.method === "PATCH" ? await request.clone().json() : null;
+      return json({ ...organization, default_budget_template_id: body?.default_budget_template ? "standard" : null });
+    });
+    renderWithProviders(<CustomerSettings />);
+    const defaults = await screen.findByRole("combobox", { name: "New organizations join" });
+    expect(defaults).toHaveTextContent("No limit");
+    await user.click(defaults);
+    await user.click(await screen.findByRole("option", { name: "Standard", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled());
+    expect(defaults).toHaveTextContent("Standard");
+    await user.click(defaults);
+    await user.click(await screen.findByRole("option", { name: "No limit", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled());
+    expect(defaults).toHaveTextContent("No limit");
+    const requests = fetchMock.mock.calls
+      .map(([input]) => input as Request)
+      .filter((request) => request.method === "PATCH");
+    expect(requests).toHaveLength(2);
+    expect(await requests[0].clone().json()).toMatchObject({ default_budget_template: "Standard" });
+    expect(await requests[1].clone().json()).toMatchObject({ default_budget_template: null });
   });
 
   it.each([

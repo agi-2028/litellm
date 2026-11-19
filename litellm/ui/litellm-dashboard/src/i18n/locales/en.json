@@ -20970,7 +20970,7 @@
   "customerPortal": {
     "appOrganizationGroups": {
       "title": "App × customer organization budget groups",
-      "help": "Reusable limits for one customer's usage within an app. These are separate from organization-wide limits."
+      "help": "Each customer organization gets these limits separately within an app. Blank means no limit."
     },
     "tokenUsage": {
       "tokenBreakdown": "Token breakdown",
@@ -20985,7 +20985,7 @@
     },
     "organizationGroups": {
       "title": "Organization budget groups",
-      "help": "Create reusable budgets, then assign them to customer organizations.",
+      "help": "Each customer organization gets these limits across all apps. Blank means no limit.",
       "placeholder": "Select a group or enter a dollar amount",
       "custom": "Use this custom budget",
       "customBadge": "Custom",
@@ -20994,6 +20994,10 @@
     },
     "budgetGroups": {
       "settingsHint": "Manage separate presets for organization-wide limits and for each customer's usage within an app.",
+      "overallTab": "Overall Organization Budget Groups",
+      "appTab": "Per-App Organization Budget Groups",
+      "newOrganizationsJoin": "New organizations join",
+      "newOrganizationsHelp": "Use this budget group for new organizations unless you choose another. No limit adds no organization-level cap.",
       "atCap": "At the cap",
       "atCapLabel": "Group {{index}} at the cap",
       "pauseUntilReset": "Pause until reset",

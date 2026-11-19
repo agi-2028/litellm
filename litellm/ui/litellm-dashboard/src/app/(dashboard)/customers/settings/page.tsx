@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import useAuthorized from "@/app/(dashboard)/hooks/useAuthorized";
 import { isProxyAdminRole } from "@/utils/roles";
 import { $api } from "@/lib/http/api";
@@ -9,10 +10,19 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import type { BudgetGroups } from "../_components/customerBudgetGroupsPlan";
 import CustomerBudgetGroups from "../_components/CustomerBudgetGroups";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { uiHref } from "@/utils/uiHref";
+
+const budgetGroupTab = parseAsStringLiteral(["organization", "app"])
+  .withDefault("organization")
+  .withOptions({ history: "push" });
 
 export default function CustomerSettings() {
   const { t } = useTranslation();
+  const [tab, setTab] = useQueryState("tab", budgetGroupTab);
+  const changeTab = (value: unknown) => {
+    if (value === "organization" || value === "app") void setTab(value);
+  };
   const { accessToken, userRole } = useAuthorized();
   const queryClient = useQueryClient();
   const canManage = Boolean(accessToken && isProxyAdminRole(userRole));
@@ -44,36 +54,42 @@ export default function CustomerSettings() {
   return (
     <main className="space-y-5 px-6 py-5">
       <h1 className="text-lg font-semibold">{t("customerPortal.budgetGroups.title")}</h1>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{t("customerPortal.budgetGroups.settingsHint")}</p>
         <Button variant="outline" nativeButton={false} render={<a href={uiHref("apps")} />}>
           {t("apps.definition.title")}
         </Button>
       </div>
-      <section aria-labelledby="organization-budget-groups" className="space-y-4">
-        <div className="space-y-1">
-          <h2 id="organization-budget-groups" className="font-semibold">
-            {t("customerPortal.organizationGroups.title")}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("customerPortal.organizationGroups.help")}</p>
+      <Tabs value={tab} onValueChange={changeTab} className="gap-6">
+        <div className="overflow-x-auto border-b">
+          <TabsList variant="line" aria-label={t("customerPortal.budgetGroups.title")} className="h-auto gap-6 p-0">
+            <TabsTrigger
+              value="organization"
+              className="flex-none rounded-none px-0 py-3 group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t("customerPortal.budgetGroups.overallTab")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="app"
+              className="flex-none rounded-none px-0 py-3 group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t("customerPortal.budgetGroups.appTab")}
+            </TabsTrigger>
+          </TabsList>
         </div>
-        {groups.data && <CustomerBudgetGroups global organization={groups.data} onSaved={saved} />}
-        {groups.isError && <ErrorState onRetry={() => void groups.refetch()} />}
-        {groups.isPending && <p>{t("customerPortal.common.loading")}</p>}
-      </section>
-      <section aria-labelledby="app-organization-budget-groups" className="space-y-4 border-t pt-6">
-        <div className="space-y-1">
-          <h2 id="app-organization-budget-groups" className="font-semibold">
-            {t("customerPortal.appOrganizationGroups.title")}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("customerPortal.appOrganizationGroups.help")}</p>
-        </div>
-        {appGroups.data && (
-          <CustomerBudgetGroups global scope="app" organization={appGroups.data} onSaved={appGroupsSaved} />
-        )}
-        {appGroups.isError && <ErrorState onRetry={() => void appGroups.refetch()} />}
-        {appGroups.isPending && <p>{t("customerPortal.common.loading")}</p>}
-      </section>
+        <TabsContent value="organization" keepMounted>
+          {groups.data && <CustomerBudgetGroups global organization={groups.data} onSaved={saved} />}
+          {groups.isError && <ErrorState onRetry={() => void groups.refetch()} />}
+          {groups.isPending && <p>{t("customerPortal.common.loading")}</p>}
+        </TabsContent>
+        <TabsContent value="app" keepMounted>
+          {appGroups.data && (
+            <CustomerBudgetGroups global scope="app" organization={appGroups.data} onSaved={appGroupsSaved} />
+          )}
+          {appGroups.isError && <ErrorState onRetry={() => void appGroups.refetch()} />}
+          {appGroups.isPending && <p>{t("customerPortal.common.loading")}</p>}
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }

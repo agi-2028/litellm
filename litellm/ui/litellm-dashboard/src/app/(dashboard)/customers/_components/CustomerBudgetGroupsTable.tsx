@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -9,12 +10,11 @@ import type { CustomerBudgetGroupFields } from "./customerOrganizationForm";
 import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 
 const columns = [
-  ["groupColumn", "w-[21%]"],
-  ["monthlyColumn", "w-[13%]"],
-  ["yearlyColumn", "w-[13%]"],
-  ["tpmColumn", "w-[12%]"],
-  ["rpmColumn", "w-[12%]"],
-  ["capColumn", "w-[23%]"],
+  ["groupColumn", "w-[21%]", "w-[26%]"],
+  ["monthlyColumn", "w-[13%]", "w-[18%]"],
+  ["yearlyColumn", "w-[13%]", "w-[18%]"],
+  ["tpmColumn", "w-[12%]", "w-[16%]"],
+  ["rpmColumn", "w-[12%]", "w-[16%]"],
 ] as const;
 const budgetFields = [
   ["monthlyBudget", "monthly"],
@@ -30,6 +30,9 @@ export default function CustomerBudgetGroupsTable({
   groups,
   defaultGroupId,
   disabled,
+  scope,
+  title,
+  description,
   onUpdate,
   onRemove,
   onAdd,
@@ -38,32 +41,46 @@ export default function CustomerBudgetGroupsTable({
   groups: CustomerBudgetGroupFields[];
   defaultGroupId: string;
   disabled: boolean;
+  scope: "member" | "organization" | "app";
+  title: string;
+  description: string;
   onUpdate: (id: string, patch: Partial<Omit<CustomerBudgetGroupFields, "id">>) => void;
   onRemove: (id: string) => void;
   onAdd: () => void;
   onDefaultChange: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const id = useId();
+  const memberGroups = scope === "member";
   const groupName = (group: CustomerBudgetGroupFields, index: number) =>
     group.name || t("customerPortal.createDialog.unnamedGroup", { index: index + 1 });
   const defaultIndex = groups.findIndex((group) => group.id === defaultGroupId);
   return (
-    <section className="space-y-3" aria-labelledby="cc-member-groups-heading">
+    <section className="space-y-3" aria-labelledby={`${id}-heading`}>
       <div className="space-y-1">
-        <h3 id="cc-member-groups-heading" className="font-semibold">
-          {t("customerPortal.createDialog.memberGroups")}
+        <h3 id={`${id}-heading`} className="font-semibold">
+          {title}
         </h3>
-        <p className="text-sm text-muted-foreground">{t("customerPortal.createDialog.memberGroupsHelp")}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <div className="overflow-hidden rounded-lg border">
-        <Table className="min-w-[60rem] table-fixed" aria-label={t("customerPortal.createDialog.memberGroups")}>
+        <Table className={`${memberGroups ? "min-w-[60rem]" : "min-w-[48rem]"} table-fixed`} aria-label={title}>
           <TableHeader className="bg-muted/40">
             <TableRow className="hover:bg-transparent">
-              {columns.map(([key, width]) => (
-                <TableHead key={key} scope="col" className={`${width} px-3 text-xs text-muted-foreground`}>
+              {columns.map(([key, memberWidth, globalWidth]) => (
+                <TableHead
+                  key={key}
+                  scope="col"
+                  className={`${memberGroups ? memberWidth : globalWidth} px-3 text-xs text-muted-foreground`}
+                >
                   {t(`customerPortal.createDialog.${key}`)}
                 </TableHead>
               ))}
+              {memberGroups && (
+                <TableHead scope="col" className="w-[23%] px-3 text-xs text-muted-foreground">
+                  {t("customerPortal.createDialog.capColumn")}
+                </TableHead>
+              )}
               <TableHead className="w-[6%]">
                 <span className="sr-only">{t("customerPortal.createDialog.groupActions")}</span>
               </TableHead>
@@ -83,7 +100,7 @@ export default function CustomerBudgetGroupsTable({
                 {budgetFields.map(([field, period]) => (
                   <TableCell key={period} className="p-2">
                     <CustomerBudgetAmountInput
-                      id={`cc-${period}-${group.id}`}
+                      id={`${id}-${period}-${group.id}`}
                       label={t(`customerPortal.createDialog.${period}Label`, { index: index + 1 })}
                       value={group[field]}
                       onChange={(value) => onUpdate(group.id, { [field]: value })}
@@ -103,54 +120,56 @@ export default function CustomerBudgetGroupsTable({
                     />
                   </TableCell>
                 ))}
-                <TableCell className="p-2">
-                  <Select
-                    value={group.capPolicy}
-                    disabled={disabled}
-                    onValueChange={(value) => {
-                      if (value === "pause_until_reset" || value === "pause_allow_increase") {
-                        onUpdate(group.id, { capPolicy: value });
-                      }
-                    }}
-                  >
-                    <SelectTrigger
-                      aria-label={t("customerPortal.budgetGroups.atCapLabel", { index: index + 1 })}
-                      className="w-full text-xs"
+                {memberGroups && (
+                  <TableCell className="p-2">
+                    <Select
+                      value={group.capPolicy}
+                      disabled={disabled}
+                      onValueChange={(value) => {
+                        if (value === "pause_until_reset" || value === "pause_allow_increase") {
+                          onUpdate(group.id, { capPolicy: value });
+                        }
+                      }}
                     >
-                      <SelectValue>
-                        {t(
-                          group.capPolicy === "pause_allow_increase"
-                            ? "customerPortal.createDialog.pauseRequest"
-                            : "customerPortal.createDialog.pause",
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1">
-                      {capOptions.map(([policy, key]) => (
-                        <SelectItem
-                          key={policy}
-                          value={policy}
-                          label={t(`customerPortal.createDialog.${key}`)}
-                          aria-label={t(`customerPortal.createDialog.${key}`)}
-                          className="items-start rounded-md py-3"
-                        >
-                          <span className="space-y-1 whitespace-normal">
-                            <span className="block font-medium">{t(`customerPortal.createDialog.${key}`)}</span>
-                            <span className="block text-xs leading-relaxed text-muted-foreground">
-                              {t(`customerPortal.createDialog.${key}Help`)}
+                      <SelectTrigger
+                        aria-label={t("customerPortal.budgetGroups.atCapLabel", { index: index + 1 })}
+                        className="w-full text-xs"
+                      >
+                        <SelectValue>
+                          {t(
+                            group.capPolicy === "pause_allow_increase"
+                              ? "customerPortal.createDialog.pauseRequest"
+                              : "customerPortal.createDialog.pause",
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1">
+                        {capOptions.map(([policy, key]) => (
+                          <SelectItem
+                            key={policy}
+                            value={policy}
+                            label={t(`customerPortal.createDialog.${key}`)}
+                            aria-label={t(`customerPortal.createDialog.${key}`)}
+                            className="items-start rounded-md py-3"
+                          >
+                            <span className="space-y-1 whitespace-normal">
+                              <span className="block font-medium">{t(`customerPortal.createDialog.${key}`)}</span>
+                              <span className="block text-xs leading-relaxed text-muted-foreground">
+                                {t(`customerPortal.createDialog.${key}Help`)}
+                              </span>
                             </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                )}
                 <TableCell className="p-2 pr-3">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    disabled={disabled || groups.length === 1}
+                    disabled={disabled || (memberGroups && groups.length === 1)}
                     onClick={() => onRemove(group.id)}
                     aria-label={t("customerPortal.createDialog.removeGroup", { name: groupName(group, index) })}
                     className="text-muted-foreground"
@@ -169,30 +188,51 @@ export default function CustomerBudgetGroupsTable({
           </Button>
         </div>
       </div>
-      <div className="grid items-center gap-3 rounded-lg bg-muted/40 p-4 sm:grid-cols-[1fr_14rem]">
-        <div className="space-y-1">
-          <Label htmlFor="cc-default-group">{t("customerPortal.createDialog.newMembersJoin")}</Label>
-          <p className="text-xs text-muted-foreground" id="cc-default-group-help">
-            {t("customerPortal.createDialog.newMembersHelp")}
-          </p>
-        </div>
-        <Select value={defaultGroupId} disabled={disabled} onValueChange={(value) => onDefaultChange(String(value))}>
-          <SelectTrigger
-            id="cc-default-group"
-            aria-describedby="cc-default-group-help"
-            className="w-full bg-background font-mono text-xs"
+      {scope !== "app" && (
+        <div className="grid items-center gap-3 rounded-lg bg-muted/40 p-4 sm:grid-cols-[1fr_14rem]">
+          <div className="space-y-1">
+            <Label htmlFor={`${id}-default-group`}>
+              {t(
+                memberGroups
+                  ? "customerPortal.createDialog.newMembersJoin"
+                  : "customerPortal.budgetGroups.newOrganizationsJoin",
+              )}
+            </Label>
+            <p className="text-xs text-muted-foreground" id={`${id}-default-group-help`}>
+              {t(
+                memberGroups
+                  ? "customerPortal.createDialog.newMembersHelp"
+                  : "customerPortal.budgetGroups.newOrganizationsHelp",
+              )}
+            </p>
+          </div>
+          <Select
+            value={defaultGroupId || "none"}
+            disabled={disabled}
+            onValueChange={(value) => onDefaultChange(value === "none" ? "" : String(value))}
           >
-            <SelectValue>{defaultIndex >= 0 ? groupName(groups[defaultIndex], defaultIndex) : ""}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {groups.map((group, index) => (
-              <SelectItem key={group.id} value={group.id} className="font-mono text-xs">
-                {groupName(group, index)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            <SelectTrigger
+              id={`${id}-default-group`}
+              aria-describedby={`${id}-default-group-help`}
+              className="w-full bg-background font-mono text-xs"
+            >
+              <SelectValue>
+                {defaultIndex >= 0
+                  ? groupName(groups[defaultIndex], defaultIndex)
+                  : t("customerPortal.createDialog.noLimit")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {!memberGroups && <SelectItem value="none">{t("customerPortal.createDialog.noLimit")}</SelectItem>}
+              {groups.map((group, index) => (
+                <SelectItem key={group.id} value={group.id} className="font-mono text-xs">
+                  {groupName(group, index)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </section>
   );
 }

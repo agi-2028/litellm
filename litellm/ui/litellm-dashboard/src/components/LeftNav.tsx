@@ -224,7 +224,7 @@ const customerPortalGroups: MenuGroup[] = [
       {
         key: "customer-settings",
         page: "customers/settings",
-        label: "customerPortal.hierarchy.settings",
+        label: "customerPortal.budgetGroups.title",
         icon: <SettingsIcon {...ICON} />,
         roles: all_admin_roles.filter(isProxyAdminRole),
       },
