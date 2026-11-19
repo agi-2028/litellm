@@ -438,6 +438,27 @@ describe("CustomerHierarchySettings", () => {
     expect(screen.queryByText("Leave a limit blank for no limit. Zero is a valid limit.")).not.toBeInTheDocument();
   });
 
+  it("should reject combining a new preset with zero permanent custom limits", async () => {
+    const user = userEvent.setup();
+    const inherited = { ...member, budget_override: null, budget_override_expires_at: null };
+    render(
+      <CustomerHierarchySettings
+        entity={{ kind: "member", record: inherited }}
+        organization={organization}
+        onSaved={onSaved}
+        onDeleted={onDeleted}
+      />,
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Override the template budget" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "0" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), "Pro");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Save the selected preset first, then set custom limits.");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
   it("should omit untouched preset restrictions when saving the first custom member budget", async () => {
     const user = userEvent.setup();
     const inheritedMember = {
