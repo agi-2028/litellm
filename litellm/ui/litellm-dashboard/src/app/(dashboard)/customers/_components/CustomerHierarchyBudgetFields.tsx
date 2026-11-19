@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import type { ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,8 +163,6 @@ export function CustomerBudgetFields({
   fields,
   onChange: update,
   idPrefix,
-  hideMaxBudget = false,
-  children,
 }: {
   fields: BudgetFields;
   onChange: {
@@ -173,25 +170,23 @@ export function CustomerBudgetFields({
     (key: "allowedModels", value: readonly string[]): void;
   };
   idPrefix: string;
-  hideMaxBudget?: boolean;
-  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const numericFields = [
-    ["maxBudget", "customerPortal.hierarchy.maxBudget", "any"],
-    ["softBudget", "customerPortal.hierarchy.softBudget", "any"],
+    ["maxBudget", "customerPortal.hierarchy.maxBudget"],
+    ["softBudget", "customerPortal.hierarchy.softBudget"],
   ] as const;
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        {numericFields.map(([name, label, step]) => (
-          <div hidden={hideMaxBudget && name === "maxBudget"} className="space-y-1.5" key={name}>
+        {numericFields.map(([name, label]) => (
+          <div className="space-y-1.5" key={name}>
             <Label htmlFor={`${idPrefix}-${name}`}>{t(label)}</Label>
             <Input
               id={`${idPrefix}-${name}`}
               type="number"
               min="0"
-              step={step}
+              step="any"
               value={fields[name]}
               onChange={(event) => update(name, event.target.value)}
             />
@@ -209,7 +204,6 @@ export function CustomerBudgetFields({
             {t("customerPortal.hierarchy.budgetDurationHint")}
           </p>
         </div>
-        {children}
       </div>
       <CustomerRateLimitFields id={idPrefix} tpm={fields.tpm} rpm={fields.rpm} onChange={update} />
       <div className="space-y-1.5">

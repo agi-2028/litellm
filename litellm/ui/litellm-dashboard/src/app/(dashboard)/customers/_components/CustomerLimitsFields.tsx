@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
-import { Input } from "@/components/ui/input";
 import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 import CustomerBudgetPeriodSelect from "./CustomerBudgetPeriodSelect";
+import { CustomerRateLimitInput, rateFields } from "./CustomerRateLimits";
 import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +15,6 @@ export type CustomerLimits = Pick<
   "budgetMode" | "budgetId" | "budgetAmount" | "budgetDuration" | "tpm" | "rpm"
 >;
 
-const rateFields = ["tpm", "rpm"] as const;
 const currencyOptions = { style: "currency", minimumFractionDigits: 0, maximumFractionDigits: 2 } as const;
 
 function LimitOptionContent({ label, summary }: { label: string; summary: string }) {
@@ -180,30 +179,14 @@ export function CustomerCustomLimitFields({
           onChange={(budgetAmount) => onChange({ budgetAmount })}
         >
           {periodControl ?? (
-            <Select
+            <CustomerBudgetPeriodSelect
               value={fields.budgetDuration}
               disabled={disabled}
-              onValueChange={(value) => {
-                if (value === "1mo" || value === "12mo") onChange({ budgetDuration: value });
+              standardOnly
+              onChange={(budgetDuration) => {
+                if (budgetDuration === "1mo" || budgetDuration === "12mo") onChange({ budgetDuration });
               }}
-            >
-              <SelectTrigger
-                aria-label={t("customerPortal.hierarchy.budgetDuration")}
-                className="h-full shrink-0 rounded-l-none border-0 border-l bg-muted/30 px-3 shadow-none"
-              >
-                <SelectValue>
-                  {t(
-                    fields.budgetDuration === "1mo"
-                      ? "customerPortal.createDialog.perMonth"
-                      : "customerPortal.createDialog.perYear",
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1mo">{t("customerPortal.createDialog.perMonth")}</SelectItem>
-                <SelectItem value="12mo">{t("customerPortal.createDialog.perYear")}</SelectItem>
-              </SelectContent>
-            </Select>
+            />
           )}
         </CustomerBudgetAmountInput>
       </div>
@@ -212,12 +195,9 @@ export function CustomerCustomLimitFields({
           <Label htmlFor={`${idPrefix}-${field}`} className="font-normal text-muted-foreground">
             {t(`customerPortal.createDialog.${field}Short`)}
           </Label>
-          <Input
+          <CustomerRateLimitInput
             id={`${idPrefix}-${field}`}
             aria-label={t(`customerPortal.hierarchy.${field}`)}
-            type="number"
-            min={0}
-            step={1}
             placeholder={t(
               inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
             )}

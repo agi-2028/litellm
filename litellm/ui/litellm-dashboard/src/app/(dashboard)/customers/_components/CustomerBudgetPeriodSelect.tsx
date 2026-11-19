@@ -5,22 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const periodLabels: Record<string, ParseKeys> = {
-  custom: "customerPortal.budgetEditor.customPeriod",
-  none: "customerPortal.budgetEditor.noReset",
   "1mo": "customerPortal.createDialog.perMonth",
   "12mo": "customerPortal.createDialog.perYear",
+  none: "customerPortal.budgetEditor.noReset",
+  custom: "customerPortal.budgetEditor.customPeriod",
 };
 
 export default function CustomerBudgetPeriodSelect({
   value,
   onChange,
+  disabled,
+  standardOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
+  standardOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const [custom, setCustom] = useState(false);
-  const customPeriod = custom || !["", "1mo", "12mo"].includes(value);
+  const customPeriod = !standardOnly && (custom || !["", "1mo", "12mo"].includes(value));
   const period = customPeriod ? "custom" : value || "none";
   const changePeriod = (next: string | null) => {
     setCustom(next === "custom");
@@ -37,7 +41,7 @@ export default function CustomerBudgetPeriodSelect({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      <Select value={period} onValueChange={changePeriod}>
+      <Select value={period} onValueChange={changePeriod} disabled={disabled}>
         <SelectTrigger
           aria-label={t("customerPortal.hierarchy.budgetDuration")}
           className="h-full shrink-0 rounded-l-none border-0 border-l bg-muted/30 px-3 shadow-none"
@@ -45,10 +49,13 @@ export default function CustomerBudgetPeriodSelect({
           <SelectValue>{t(periodLabels[period])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="1mo">{t("customerPortal.createDialog.perMonth")}</SelectItem>
-          <SelectItem value="12mo">{t("customerPortal.createDialog.perYear")}</SelectItem>
-          <SelectItem value="none">{t("customerPortal.budgetEditor.noReset")}</SelectItem>
-          <SelectItem value="custom">{t("customerPortal.budgetEditor.customPeriod")}</SelectItem>
+          {Object.entries(periodLabels)
+            .slice(0, standardOnly ? 2 : undefined)
+            .map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {t(label)}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
     </>
