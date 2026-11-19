@@ -95,6 +95,8 @@ fn variables(environment: &Environment) -> impl Iterator<Item = Box<str>> + use<
         max_request_body_decompression_ratio: _,
         max_decompressed_request_bodies_in_flight_mb: _,
         non_llm_connection_timeout: _,
+        litellm_rate_limit_window_size: _,
+        litellm_tpm_token_reservation_enabled: _,
         legacy_multi_instance_rate_limiting,
         use_aws_kms,
         litellm_ssl_ciphers,

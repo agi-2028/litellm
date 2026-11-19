@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use axum::{body::Body, extract::Request, http::Method};
 use litellm_config::{Config, Environment};
-use litellm_gateway_auth::keys::{KeyHash, KeyLookup, KeyStatus, LookupFuture};
+use litellm_gateway_auth::keys::{KeyHash, KeyLimits, KeyLookup, KeyStatus, LookupFuture};
 use litellm_secret_value::SecretValue;
 use rstest::rstest;
 use serde::Deserialize;
@@ -29,6 +29,7 @@ impl KeyLookup for Listed {
             Ok(self.0.get(hash).map(|models| KeyStatus::Active {
                 expires_at: None,
                 models: models.clone(),
+                limits: KeyLimits::default(),
             }))
         })
     }

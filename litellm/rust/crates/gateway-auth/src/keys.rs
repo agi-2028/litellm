@@ -17,12 +17,20 @@ impl KeyHash {
     }
 }
 
+/// The request limits a virtual key holds, which the server enforces after authentication.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct KeyLimits {
+    pub rpm: Option<i64>,
+    pub max_parallel_requests: Option<i64>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KeyStatus {
     /// `models` is the key's model list, where none reaches every model.
     Active {
         expires_at: Option<SystemTime>,
         models: Arc<[String]>,
+        limits: KeyLimits,
     },
     Revoked,
 }

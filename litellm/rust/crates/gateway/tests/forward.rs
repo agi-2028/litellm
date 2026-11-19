@@ -12,7 +12,7 @@ use http_body_util::BodyExt;
 use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 use litellm_config::{Config, Environment};
 use litellm_gateway::middleware;
-use litellm_gateway_auth::keys::{KeyHash, KeyLookup, KeyStatus, LookupFuture};
+use litellm_gateway_auth::keys::{KeyHash, KeyLimits, KeyLookup, KeyStatus, LookupFuture};
 use litellm_gateway_forward::ANSWERED_BY_HEADER;
 use litellm_license::Entitlements;
 use rstest::rstest;
@@ -80,6 +80,7 @@ async fn gateway(python: SocketAddr, admits: bool, root_path: &str) -> SocketAdd
                 inference: litellm_gateway::build_inference(
                     &config,
                     &litellm_gateway::Resources::build(&config).unwrap(),
+                    None,
                 )
                 .await
                 .unwrap(),
@@ -87,6 +88,10 @@ async fn gateway(python: SocketAddr, admits: bool, root_path: &str) -> SocketAdd
                 database: None,
                 keys: None,
                 entitlements: Arc::new(Entitlements::Community),
+                rate_limit: Arc::new(litellm_gateway::middleware::rate_limit::RateLimit::new(
+                    litellm_gateway::middleware::rate_limit::Settings::default(),
+                    None,
+                )),
                 environment: Arc::new(litellm_env::ProcessEnvironment),
             },
             &config,
@@ -584,6 +589,7 @@ impl KeyLookup for Counted {
             Ok(Some(KeyStatus::Active {
                 expires_at: None,
                 models: Arc::from([]),
+                limits: KeyLimits::default(),
             }))
         })
     }

@@ -203,7 +203,10 @@ impl Admit {
 #[cfg(test)]
 mod tests {
     use axum::http::Method;
-    use litellm_gateway_auth::keys::{KeyHash, KeyLookup, KeyStatus, LookupFuture};
+    use litellm_gateway_auth::{
+        BearerOrXApiKey,
+        keys::{KeyHash, KeyLimits, KeyLookup, KeyStatus, LookupFuture},
+    };
     use litellm_secret_value::SecretValue;
     use rstest::rstest;
 
@@ -242,6 +245,7 @@ mod tests {
                     Self::Active => Ok(Some(KeyStatus::Active {
                         expires_at: None,
                         models: Arc::from([]),
+                        limits: KeyLimits::default(),
                     })),
                     Self::Revoked => Ok(Some(KeyStatus::Revoked)),
                     Self::Restricted => Err(litellm_gateway_auth::Error::Forbidden),
