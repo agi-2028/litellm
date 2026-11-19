@@ -9095,7 +9095,7 @@ class TestMCPServerManager:
         )
 
         with (
-            patch.object(proxy_server_module, "user_api_key_cache", _Cache()),
+            patch.object(proxy_server_module, "mcp_state_cache", _Cache()),
             patch.object(proxy_server_module, "prisma_client", None),
             patch.object(manager, "get_allow_all_keys_server_ids", return_value=["global-server"]),
             patch.object(
@@ -9147,7 +9147,7 @@ class TestMCPServerManager:
         )
 
         with (
-            patch.object(proxy_server_module, "user_api_key_cache", cache),
+            patch.object(proxy_server_module, "mcp_state_cache", cache),
             patch.object(proxy_server_module, "prisma_client", None),
             patch.object(manager, "get_allow_all_keys_server_ids", return_value=[]),
             patch.object(
@@ -9196,7 +9196,7 @@ class TestMCPServerManager:
         token = mcp_active_toolset_id.set("unrelated-ambient-toolset")
         try:
             with (
-                patch.object(proxy_server_module, "user_api_key_cache", cache),
+                patch.object(proxy_server_module, "mcp_state_cache", cache),
                 patch.object(proxy_server_module, "prisma_client", None),
                 patch.object(manager, "get_allow_all_keys_server_ids", return_value=["global-server"]),
                 patch.object(
@@ -9223,7 +9223,7 @@ class TestMCPServerManager:
         cache.async_delete_cache = AsyncMock()
         manager = MCPServerManager()
 
-        with patch.object(proxy_server_module, "user_api_key_cache", cache):
+        with patch.object(proxy_server_module, "mcp_state_cache", cache):
             await manager.invalidate_byom_submitted_servers_cache("user-123")
             await manager.invalidate_byom_submitted_servers_cache(None)
 
@@ -9248,7 +9248,7 @@ class TestMCPServerManager:
         user_api_key_auth = UserAPIKeyAuth(api_key="sk-test", user_id="user-123")
 
         with (
-            patch.object(proxy_server_module, "user_api_key_cache", cache),
+            patch.object(proxy_server_module, "mcp_state_cache", cache),
             patch.object(proxy_server_module, "prisma_client", MagicMock()),
             patch(
                 "litellm.proxy.mcp_server.db.get_active_submitted_mcp_server_ids_for_user",
@@ -9291,7 +9291,7 @@ class TestMCPServerManager:
         )
 
         with (
-            patch.object(proxy_server_module, "user_api_key_cache", _Cache()),
+            patch.object(proxy_server_module, "mcp_state_cache", _Cache()),
             patch.object(proxy_server_module, "prisma_client", None),
             patch.object(manager, "get_allow_all_keys_server_ids", return_value=["global-server"]),
             patch.object(
@@ -13399,7 +13399,7 @@ async def test_resolve_toolset_tool_permissions_single_db_fetch_across_checks():
             list_toolsets_mock,
         ),
         patch("litellm.proxy.proxy_server.prisma_client", MagicMock()),
-        patch("litellm.proxy.proxy_server.user_api_key_cache", DualCache()),
+        patch("litellm.proxy.proxy_server.mcp_state_cache", DualCache()),
     ):
         first = await manager.resolve_toolset_tool_permissions(toolset_ids=["ts-1"])
         second = await manager.resolve_toolset_tool_permissions(toolset_ids=["ts-1"])
@@ -13432,7 +13432,7 @@ async def test_resolve_toolset_tool_permissions_fresh_policy_sees_writer_revocat
             list_toolsets_mock,
         ),
         patch("litellm.proxy.proxy_server.prisma_client", MagicMock()),
-        patch("litellm.proxy.proxy_server.user_api_key_cache", DualCache()),
+        patch("litellm.proxy.proxy_server.mcp_state_cache", DualCache()),
     ):
         warm = await manager.resolve_toolset_tool_permissions(toolset_ids=["ts-1"])
         legacy_after_revoke = await manager.resolve_toolset_tool_permissions(toolset_ids=["ts-1"])
@@ -13466,7 +13466,7 @@ async def test_resolve_toolset_tool_permissions_fresh_policy_propagates_db_fault
             list_toolsets_mock,
         ),
         patch("litellm.proxy.proxy_server.prisma_client", MagicMock()),
-        patch("litellm.proxy.proxy_server.user_api_key_cache", DualCache()),
+        patch("litellm.proxy.proxy_server.mcp_state_cache", DualCache()),
     ):
         legacy = await manager.resolve_toolset_tool_permissions(toolset_ids=["ts-1"])
         with pytest.raises(RuntimeError, match="relation does not exist"):
@@ -22993,6 +22993,7 @@ async def test_cold_guarded_call_uses_the_callers_stored_legacy_oauth_token(
 
     _, logger = catalog_guardrail
     monkeypatch.setattr(proxy_server, "user_api_key_cache", DualCache())
+    monkeypatch.setattr(proxy_server, "mcp_state_cache", DualCache())
     monkeypatch.setattr(proxy_server, "master_key", "test-guarded-oauth-cache-key")
     server: Final = MCPServer(
         server_id="legacy-guarded",
