@@ -2,6 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { registerBaseUrlGetter } from "@/lib/http/runtime";
 import {
+  jsonResponse as json,
   chooseSelectOption,
   fireEvent,
   renderWithProviders as render,
@@ -14,16 +15,26 @@ import CustomerBudgetSummary from "./CustomerBudgetSummary";
 import { customerUsageEntity } from "./customerUsageApi";
 import type { Member, Organization } from "./customerHierarchyForms";
 
-vi.mock("@/app/(dashboard)/hooks/models/useModels", () => ({
-  useAllProxyModels: () => ({ data: { data: [] }, isLoading: false, isError: false }),
-}));
-
 const audit = { created_at: "", updated_at: "", created_by: "", updated_by: "", spend: 10 };
+const standard = { budget_id: "standard", name: "Standard", max_budget: 500 };
 const organization: Organization = {
-  ...audit,
   customer_org_id: "org-1",
-  default_budgets: [{ budget_id: "standard", name: "Standard", max_budget: 500 }],
+  alias: "Example",
+  ...audit,
+  default_budgets: [],
+  budget_id: "owned",
+  budget_is_shared: false,
+  budget: {
+    max_budget: 100,
+    soft_budget: 80,
+    budget_duration: "7d",
+    tpm_limit: 1000,
+    rpm_limit: 10,
+    allowed_models: ["configured-model"],
+    budget_limits: [{ max_budget: 1000, budget_duration: "12mo" }],
+  },
 };
+const memberOrganization: Organization = { ...audit, customer_org_id: "org-1", default_budgets: [standard] };
 const override = {
   max_budget: 100,
   budget_duration: "1mo",
@@ -48,40 +59,111 @@ const member: Member = {
   effective_budget: override,
 };
 const fetchMock = vi.fn<typeof fetch>();
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 const writes = () =>
   fetchMock.mock.calls
     .map(([input]) => input)
     .filter((input): input is Request => input instanceof Request && input.method === "PATCH");
-const renderSummary = () =>
+const views = {
+  organization: {
+    entity: {
+      id: "org-1",
+      label: "Example",
+      spend: 10,
+      budgetLimit: 100,
+      budgetDuration: "7d",
+      budgetLimits: [],
+      budgetResetAt: null,
+    },
+    memberId: null,
+    amount: "Spend limit (USD)",
+    dialog: "Edit organization budget",
+    error: "Budget update unavailable",
+  },
+  member: {
+    entity: customerUsageEntity(member.customer_member_id, member),
+    memberId: member.customer_member_id,
+    amount: "Monthly budget",
+    dialog: "Edit member budget",
+    error: "Member budget unavailable",
+  },
+} as const;
+
+let viewScope: keyof typeof views;
+
+async function openBudget(scope: keyof typeof views) {
+  viewScope = scope;
+  const { entity, memberId } = views[scope];
+  const user = userEvent.setup();
   render(
     <CustomerBudgetSummary
-      entity={customerUsageEntity(member.customer_member_id, member)}
-      scope={{ org: "org-1", team: null, member: member.customer_member_id }}
-      settingsHref="/customers/manage?org=org-1&member=member-1&tab=settings"
+      entity={entity}
+      scope={{ org: "org-1", team: null, member: memberId }}
+      settingsHref={`/customers/manage?org=org-1${memberId ? `&member=${memberId}` : ""}&tab=settings`}
     />,
   );
+  await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+  return user;
+}
+
+beforeEach(() => {
+  testQueryClient.clear();
+  registerBaseUrlGetter(() => "http://localhost");
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (path.endsWith("/customer_organization_budget_groups")) return json({ default_budgets: [standard] });
+    if (path.endsWith("/customer_organizations/org-1"))
+      return json(viewScope === "member" ? memberOrganization : organization);
+    if (path.endsWith("/customer_members/member-1")) return json(member);
+    if (path.endsWith("/models")) return json({ data: [{ id: "configured-model", owned_by: "openai" }] });
+    throw new Error(`Unexpected request ${path}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe("organization budget dialog", () => {
+  it("opens from the budget summary and saves custom spend, soft budget, rates and reset period", async () => {
+    const user = await openBudget("organization");
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit organization budget" }));
+    expect(await dialog.findByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(100);
+    expect(dialog.getByRole("textbox", { name: "Custom period" })).toHaveValue("7d");
+    fireEvent.change(dialog.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "200" } });
+    fireEvent.change(dialog.getByRole("spinbutton", { name: "Soft budget (USD)" }), { target: { value: "150" } });
+    fireEvent.change(dialog.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "2000" } });
+    fireEvent.change(dialog.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "0" } });
+    await chooseSelectOption(user, dialog.getByRole("combobox", { name: "Reset period" }), "/ month");
+    await user.click(dialog.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes()).toHaveLength(1);
+    expect(new URL(writes()[0].url).pathname).toBe("/management/v1/customer_organizations/org-1");
+    expect(await writes()[0].clone().json()).toEqual({
+      budget: {
+        ...organization.budget,
+        max_budget: 200,
+        soft_budget: 150,
+        budget_duration: "1mo",
+        tpm_limit: 2000,
+        rpm_limit: 0,
+      },
+    });
+  });
+
+  it("selects an organization preset and submits its ID without custom overrides", async () => {
+    const user = await openBudget("organization");
+    const source = await screen.findByRole("combobox", { name: "Customer organization limits" });
+    await waitFor(() => expect(source).toBeEnabled());
+    await chooseSelectOption(user, source, /^Standard/);
+    expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(await writes()[0].clone().json()).toEqual({ budget_id: "standard" });
+  });
+});
 
 describe("member budget dialog", () => {
-  beforeEach(() => {
-    testQueryClient.clear();
-    registerBaseUrlGetter(() => "http://localhost");
-    fetchMock.mockReset();
-    fetchMock.mockImplementation(async (input) => {
-      const path = new URL((input as Request).url).pathname;
-      if (path.endsWith("/customer_organizations/org-1")) return json(organization);
-      if (path.endsWith("/customer_members/member-1")) return json(member);
-      throw new Error(`Unexpected request ${path}`);
-    });
-    vi.stubGlobal("fetch", fetchMock);
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
   it("saves monthly and yearly overrides while preserving additional limits, models and expiry", async () => {
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     const dialog = within(await screen.findByRole("dialog", { name: "Edit member budget", exact: true }));
     expect(await dialog.findByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
     fireEvent.change(dialog.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "200" } });
@@ -102,9 +184,7 @@ describe("member budget dialog", () => {
   });
 
   it("selects a preset and removes the custom override and its expiry", async () => {
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     const source = await screen.findByRole("combobox", { name: "Member limits" });
     await chooseSelectOption(user, source, /^Standard/);
     expect(screen.queryByRole("spinbutton", { name: "Monthly budget" })).not.toBeInTheDocument();
@@ -117,9 +197,7 @@ describe("member budget dialog", () => {
   });
 
   it("detaches the preset without changing existing custom limits or expiry", async () => {
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     await chooseSelectOption(user, await screen.findByRole("combobox", { name: "Member limits" }), /^No template/);
     expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -172,12 +250,10 @@ describe("member budget dialog", () => {
       json(
         new URL((input as Request).url).pathname.endsWith("/customer_members/member-1")
           ? inheritedMember
-          : organization,
+          : memberOrganization,
       ),
     );
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     await chooseSelectOption(
       user,
       await screen.findByRole("combobox", { name: "Member limits" }),
@@ -199,35 +275,12 @@ describe("member budget dialog", () => {
     });
   });
 
-  it("discards a cancelled draft and retains unsaved values after a failed save", async () => {
-    const serve = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation(async (input, init) =>
-      input instanceof Request && input.method === "PATCH"
-        ? json({ detail: "Member budget unavailable" }, 503)
-        : serve(input, init),
-    );
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
-    fireEvent.change(await screen.findByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "999" } });
-    await user.click(screen.getByRole("button", { name: "Cancel", exact: true }));
-    expect(writes()).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
-    expect(await screen.findByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "200" } });
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Member budget unavailable");
-    expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(200);
-  });
-
   it("saves an edited reset period after clearing the custom spend cap", async () => {
     const custom = { ...member, budget_override: { max_budget: 20, budget_duration: "7d", tpm_limit: 100 } };
     fetchMock.mockImplementation(async (input) =>
       json(new URL((input as Request).url).pathname.endsWith("/customer_members/member-1") ? custom : organization),
     );
-    const user = userEvent.setup();
-    renderSummary();
-    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    const user = await openBudget("member");
     fireEvent.change(await screen.findByRole("spinbutton", { name: "Additional spend limit (USD)" }), {
       target: { value: "" },
     });
@@ -237,5 +290,26 @@ describe("member budget dialog", () => {
     expect(await writes()[0].clone().json()).toMatchObject({
       budget_override: { max_budget: null, budget_duration: "14d", tpm_limit: 100 },
     });
+  });
+});
+
+describe.each(["organization", "member"] as const)("%s budget draft", (scope) => {
+  it("discards a cancelled draft and retains unsaved values after a failed save", async () => {
+    const { amount, dialog, error } = views[scope];
+    const serve = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) =>
+      input instanceof Request && input.method === "PATCH" ? json({ detail: error }, 503) : serve(input, init),
+    );
+    const user = await openBudget(scope);
+    fireEvent.change(await screen.findByRole("spinbutton", { name: amount }), { target: { value: "999" } });
+    await user.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+    expect(writes()).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    expect(await screen.findByRole("spinbutton", { name: amount })).toHaveValue(100);
+    fireEvent.change(screen.getByRole("spinbutton", { name: amount }), { target: { value: "200" } });
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(error);
+    expect(screen.getByRole("spinbutton", { name: amount })).toHaveValue(200);
+    expect(screen.getByRole("dialog", { name: dialog })).toBeInTheDocument();
   });
 });

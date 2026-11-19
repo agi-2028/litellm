@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CustomerBudgetGroupFields } from "./customerOrganizationForm";
 import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
+import { CustomerRateLimitInput, rateFields } from "./CustomerRateLimits";
 
 const columns = [
   ["groupColumn", "w-[21%]", "w-[26%]"],
@@ -20,7 +21,6 @@ const budgetFields = [
   ["monthlyBudget", "monthly"],
   ["yearlyBudget", "yearly"],
 ] as const;
-const rateFields = ["tpm", "rpm"] as const;
 const capOptions = [
   ["pause_until_reset", "pauseUntilReset"],
   ["pause_allow_increase", "pauseAllowIncrease"],
@@ -109,13 +109,9 @@ export default function CustomerBudgetGroupsTable({
                 ))}
                 {rateFields.map((field) => (
                   <TableCell key={field} className="p-2">
-                    <Input
+                    <CustomerRateLimitInput
                       aria-label={t(`customerPortal.createDialog.${field}Label`, { index: index + 1 })}
-                      type="number"
-                      min={0}
-                      step={1}
                       value={group[field]}
-                      placeholder={t("customerPortal.createDialog.noLimit")}
                       onChange={(event) => onUpdate(group.id, { [field]: event.target.value })}
                     />
                   </TableCell>
