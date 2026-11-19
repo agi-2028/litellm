@@ -1,5 +1,7 @@
 "use client";
 
+import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../customers/_components/customerBudgetForm";
+
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
@@ -14,14 +16,8 @@ import { fetchClient } from "@/lib/http/api";
 import { ApiError, extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
-import {
-  compactAppBudgetFields,
-  compactAppBudgetValue,
-  type App,
-  type AppResource,
-  type AppOrganization,
-} from "./appForms";
-import AppBudgetCompactFields from "./AppBudgetCompactFields";
+import { type App, type AppResource, type AppOrganization } from "./appForms";
+import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
 import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import AppBudgetLimits from "./AppBudgetLimits";
 import { useAppBudgetGroups } from "./useAppBudgetGroups";
@@ -381,10 +377,10 @@ function OrganizationAppForm({
   const [source, setSource] = useState(() => organizationBudgetSource(row));
   const [profile, setProfile] = useState(row?.tier_budget_id ?? "");
   const [override, setOverride] = useState(() =>
-    compactAppBudgetFields(row?.budget_override_id ? row.effective_budget : null),
+    compactBudgetEditorFields(row?.budget_override_id ? row.effective_budget : null),
   );
   const [member, setMember] = useState(() =>
-    compactAppBudgetFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
+    compactBudgetEditorFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
   );
   const [error, setError] = useState<string | null>(null);
   const profileUnavailable = source === "profile" && !groups.isSuccess;
@@ -402,11 +398,11 @@ function OrganizationAppForm({
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (pending || profileUnavailable) return;
-    const budget = compactAppBudgetValue(
+    const budget = compactBudgetEditorValue(
       { ...override, budgetEnabled: source === "custom" },
       row?.budget_override_id ? row.effective_budget : null,
     );
-    const memberBudget = compactAppBudgetValue(
+    const memberBudget = compactBudgetEditorValue(
       member,
       row?.customer_member_budget_id ? row.effective_customer_member_budget : null,
     );
@@ -475,7 +471,7 @@ function OrganizationAppForm({
           <ErrorState message={extractProxyErrorMessage(groups.error)} onRetry={() => void groups.refetch()} />
         )}
         {source === "custom" && (
-          <AppBudgetCompactFields
+          <CustomerBudgetCompactFields
             fields={override}
             original={row?.budget_override_id ? row.effective_budget : null}
             onChange={setOverride}
@@ -500,7 +496,7 @@ function OrganizationAppForm({
           />
         </div>
         {member.budgetEnabled && (
-          <AppBudgetCompactFields
+          <CustomerBudgetCompactFields
             fields={member}
             original={row?.customer_member_budget_id ? row.effective_customer_member_budget : null}
             onChange={setMember}

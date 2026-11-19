@@ -1,11 +1,12 @@
 "use client";
 
+import { type BudgetEditorFields } from "../../customers/_components/customerBudgetForm";
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import { CustomerBudgetFields } from "../../customers/_components/CustomerHierarchyBudgetFields";
-import type { AppBudgetFields } from "./appForms";
 
 export default function AppBudgetEditor({
   title,
@@ -15,13 +16,13 @@ export default function AppBudgetEditor({
   optional = true,
 }: {
   title: string;
-  fields: AppBudgetFields;
-  onChange: (fields: AppBudgetFields) => void;
+  fields: BudgetEditorFields;
+  onChange: (fields: BudgetEditorFields) => void;
   id: string;
   optional?: boolean;
 }) {
   const { t } = useTranslation();
-  const update = <K extends keyof AppBudgetFields>(key: K, value: AppBudgetFields[K]) =>
+  const update = <K extends keyof BudgetEditorFields>(key: K, value: BudgetEditorFields[K]) =>
     onChange({ ...fields, [key]: value });
   return (
     <fieldset className="min-w-0 space-y-4 border-t pt-4">

@@ -19,7 +19,7 @@ import { compareCustomerBudgets, customerBudgetSortParser } from "./customerBudg
 import { CustomerBudgetSortHeader } from "./CustomerBudgetColumn";
 import { customerUsageTotals, EMPTY_CUSTOMER_USAGE } from "./customerUsageTotals";
 import CustomerTokenTotal from "./CustomerTokenTotal";
-import CustomerMemberBudgetDialog from "./CustomerMemberBudgetDialog";
+import CustomerEntityBudgetDialog from "./CustomerEntityBudgetDialog";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25];
 const MEMBER_TABLE_PARSERS = {
@@ -150,7 +150,7 @@ export default function CustomerMemberSpend({
         />
       </div>
       {editingMember && (
-        <CustomerMemberBudgetDialog
+        <CustomerEntityBudgetDialog
           memberId={editingMember}
           organizationId={data.organization.id}
           onClose={() => setEditingMember(null)}

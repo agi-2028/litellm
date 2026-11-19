@@ -4,8 +4,7 @@ import type { CustomerUsageEntity } from "./customerUsageApi";
 import { CustomerBudgetWindow } from "./CustomerBudgetSpend";
 import { CUSTOMER_BUDGET_LABELS, customerBudgetPeriod, customerBudgetUsage } from "./customerBudgetUsage";
 import { CustomerRateLimitSummary } from "./CustomerRateLimits";
-import CustomerOrganizationBudgetDialog from "./CustomerOrganizationBudgetDialog";
-import CustomerMemberBudgetDialog from "./CustomerMemberBudgetDialog";
+import CustomerEntityBudgetDialog from "./CustomerEntityBudgetDialog";
 import type { CustomerHierarchyScope } from "./customerHierarchyApi";
 
 export default function CustomerBudgetSummary({
@@ -26,6 +25,7 @@ export default function CustomerBudgetSummary({
       ? "customerPortal.analytics.editBudget"
       : "customerPortal.analytics.setBudget",
   );
+  const showBudgetDialog = editing && Boolean(organizationId || scope.member);
   return (
     <section className="mt-2 min-w-0 space-y-2 text-sm" aria-label={t("customerPortal.analytics.budgetSummary")}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
@@ -61,17 +61,10 @@ export default function CustomerBudgetSummary({
         </p>
       )}
       <CustomerRateLimitSummary limits={entity.rateLimits} />
-      {editing && organizationId && (
-        <CustomerOrganizationBudgetDialog
-          key={organizationId}
-          organizationId={organizationId}
-          onClose={() => setEditing(false)}
-        />
-      )}
-      {editing && scope.member && (
-        <CustomerMemberBudgetDialog
+      {showBudgetDialog && (
+        <CustomerEntityBudgetDialog
           key={scope.member}
-          memberId={scope.member}
+          memberId={scope.member ?? undefined}
           organizationId={scope.org}
           onClose={() => setEditing(false)}
         />

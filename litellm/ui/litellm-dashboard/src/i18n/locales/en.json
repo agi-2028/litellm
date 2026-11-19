@@ -20993,6 +20993,8 @@
       "assignedGroup": "Organization budget group {{name}}"
     },
     "budgetGroups": {
+      "organizationDefault": "Use organization default",
+      "organizationDefaultHelp": "Apply the configured default when this organization is created.",
       "settingsHint": "Manage separate presets for organization-wide limits and for each customer's usage within an app.",
       "overallTab": "Overall Organization Budget Groups",
       "appTab": "Per-App Organization Budget Groups",
@@ -21064,6 +21066,7 @@
       "allowedModelsHint": "Selected models must also be allowed by the gateway key and parent customer.",
       "template": "Budget template",
       "noTemplate": "No template",
+      "noTemplateHelp": "Use custom limits without inheriting a member budget group.",
       "unknownTemplate": "Unavailable template ({{id}})",
       "defaultTemplate": "{{name}} (default)",
       "overrideEnabled": "Override the template budget",

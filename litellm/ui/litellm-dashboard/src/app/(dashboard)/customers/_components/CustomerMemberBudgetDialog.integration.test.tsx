@@ -98,7 +98,6 @@ describe("member budget dialog", () => {
         rpm_limit: 0,
         budget_limits: [{ ...override.budget_limits[0], max_budget: 2400 }, override.budget_limits[1]],
       },
-      budget_override_expires_at: member.budget_override_expires_at,
     });
   });
 
@@ -112,10 +111,20 @@ describe("member budget dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(await writes()[0].clone().json()).toEqual({
-      budget_id: "standard",
       budget_override: null,
       budget_override_expires_at: null,
     });
+  });
+
+  it("detaches the preset without changing existing custom limits or expiry", async () => {
+    const user = userEvent.setup();
+    renderSummary();
+    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    await chooseSelectOption(user, await screen.findByRole("combobox", { name: "Member limits" }), /^No template/);
+    expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(100);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(await writes()[0].clone().json()).toEqual({ budget_id: null });
   });
 
   it.each([null, "7d"])("preserves the existing reset period %s when saving rate-only limits", async (duration) => {
@@ -152,7 +161,6 @@ describe("member budget dialog", () => {
         rpm_limit: null,
         allowed_models: null,
       },
-      budget_override_expires_at: null,
     });
   });
 
@@ -175,5 +183,24 @@ describe("member budget dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Member budget unavailable");
     expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(200);
+  });
+
+  it("saves an edited reset period after clearing the custom spend cap", async () => {
+    const custom = { ...member, budget_override: { max_budget: 20, budget_duration: "7d", tpm_limit: 100 } };
+    fetchMock.mockImplementation(async (input) =>
+      json(new URL((input as Request).url).pathname.endsWith("/customer_members/member-1") ? custom : organization),
+    );
+    const user = userEvent.setup();
+    renderSummary();
+    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Additional spend limit (USD)" }), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Custom reset period" }), { target: { value: "14d" } });
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(await writes()[0].clone().json()).toMatchObject({
+      budget_override: { max_budget: null, budget_duration: "14d", tpm_limit: 100 },
+    });
   });
 });

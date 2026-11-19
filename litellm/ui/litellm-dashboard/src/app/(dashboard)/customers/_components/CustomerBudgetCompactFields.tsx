@@ -1,22 +1,23 @@
+import { type BudgetEditorFields, budgetPeriodAmount, updateBudgetPeriod } from "./customerBudgetForm";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
-import CustomerBudgetAmountInput from "../../customers/_components/CustomerBudgetAmountInput";
+import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 import { Label } from "@/components/ui/label";
-import CustomerAllowedModelsSelect from "../../customers/_components/CustomerAllowedModelsSelect";
-import { appBudgetPeriodAmount, updateAppBudgetPeriod, type AppBudgetFields, type Budget } from "./appForms";
+import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
+import type { Budget } from "./customerBudgetForm";
 
 const rateFields = ["tpm", "rpm"] as const;
 
-export default function AppBudgetCompactFields({
+export default function CustomerBudgetCompactFields({
   fields,
   original,
   onChange,
   disabled,
   id,
 }: {
-  fields: AppBudgetFields;
+  fields: BudgetEditorFields;
   original?: Budget | null;
-  onChange: (fields: AppBudgetFields) => void;
+  onChange: (fields: BudgetEditorFields) => void;
   disabled: boolean;
   id: string;
 }) {
@@ -36,8 +37,8 @@ export default function AppBudgetCompactFields({
               id={`${id}-${period}`}
               label={t(period === "1mo" ? "apps.monthlyBudget" : "apps.yearlyBudget")}
               disabled={disabled}
-              value={appBudgetPeriodAmount(fields, period)}
-              onChange={(value) => onChange(updateAppBudgetPeriod(fields, period, value))}
+              value={budgetPeriodAmount(fields, period)}
+              onChange={(value) => onChange(updateBudgetPeriod(fields, period, value))}
             />
           </div>
         ))}

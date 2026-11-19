@@ -319,6 +319,7 @@ describe("CustomerHierarchySettings", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
       budget_override: {
+        budget_limits: null,
         max_budget: 75,
         soft_budget: null,
         budget_duration: "1mo",
@@ -364,6 +365,23 @@ describe("CustomerHierarchySettings", () => {
     expect(screen.getByRole("combobox", { name: "Budget template" })).toHaveTextContent(
       "Unavailable template (retired-template)",
     );
+  });
+
+  it("detaches a member from its template while retaining custom limits", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(json(member));
+    render(
+      <CustomerHierarchySettings
+        entity={{ kind: "member", record: member }}
+        organization={organization}
+        onSaved={onSaved}
+        onDeleted={onDeleted}
+      />,
+    );
+    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), /^No template/);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(await lastRequest().clone().json()).toEqual({ budget_id: null });
   });
 
   it("should clear the member override and its expiry without changing the template", async () => {
@@ -430,6 +448,7 @@ describe("CustomerHierarchySettings", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(await lastRequest().clone().json()).toEqual({
       budget_override: {
+        budget_limits: null,
         max_budget: 50,
         soft_budget: null,
         tpm_limit: null,

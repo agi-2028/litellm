@@ -31,13 +31,16 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const [fields, setFields] = useState(initialCustomerOrganizationFields);
-  const [limitsTouched, setLimitsTouched] = useState(false);
   const [error, setError] = useState<CustomerOrganizationFormError | null>(null);
   const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {}, { enabled: open });
   const defaultBudgetId = groups.data?.default_budget_template_id;
   const effectiveFields =
-    !limitsTouched && defaultBudgetId
-      ? { ...fields, budgetMode: "profile" as const, budgetId: defaultBudgetId }
+    fields.budgetMode === "inherit" && groups.isSuccess
+      ? {
+          ...fields,
+          budgetMode: defaultBudgetId ? ("profile" as const) : ("custom" as const),
+          budgetId: defaultBudgetId ?? "",
+        }
       : fields;
   const create = $api.useMutation("post", "/management/v1/customer_organizations", {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["get", "/management/v1/customer_portal/limits"] }),
@@ -45,7 +48,6 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
       toast.success(t("customerPortal.toasts.created", { name: customer.alias || fields.name.trim() }));
       onCreated(customer.customer_org_id);
       setFields(initialCustomerOrganizationFields());
-      setLimitsTouched(false);
       setError(null);
       onOpenChange(false);
     },
@@ -55,7 +57,7 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (create.isPending || groups.isPending) return;
-    const result = buildCustomerOrganizationBody(effectiveFields);
+    const result = buildCustomerOrganizationBody(fields);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -65,7 +67,6 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
   };
   const changeLimits = (patch: Partial<CustomerLimits>) => {
     setFields({ ...effectiveFields, ...patch });
-    setLimitsTouched(true);
     setError(null);
   };
   return (
@@ -117,6 +118,10 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
           description={t("customerPortal.createDialog.organizationLimitsHelp")}
           idPrefix={limitsIdPrefix}
           loading={groups.isPending}
+          inheritedOption={{
+            label: t("customerPortal.budgetGroups.organizationDefault"),
+            summary: t("customerPortal.budgetGroups.organizationDefaultHelp"),
+          }}
           disabled={create.isPending}
           onChange={changeLimits}
         />

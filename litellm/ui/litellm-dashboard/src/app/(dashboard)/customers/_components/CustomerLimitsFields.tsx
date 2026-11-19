@@ -35,6 +35,7 @@ export function CustomerBudgetSourceSelect({
   disabled,
   loading = false,
   inheritedOption,
+  noTemplate = false,
 }: {
   profiles: Organization["default_budgets"];
   value: string;
@@ -43,6 +44,7 @@ export function CustomerBudgetSourceSelect({
   disabled: boolean;
   loading?: boolean;
   inheritedOption?: { label: string; summary: string };
+  noTemplate?: boolean;
 }) {
   const { t } = useTranslation();
   const profileOptions = profiles.map((group) => {
@@ -83,17 +85,22 @@ export function CustomerBudgetSourceSelect({
     label: t("customerPortal.createDialog.customLimits"),
     summary: t("customerPortal.createDialog.customLimitsHelp"),
   };
-  const selectedOption = value === "custom" ? customOption : profileOptions.find((option) => option.value === value);
+  const noTemplateOption = {
+    value: "none",
+    label: t("customerPortal.hierarchy.noTemplate"),
+    summary: t("customerPortal.hierarchy.noTemplateHelp"),
+  };
+  const options = [
+    ...profileOptions,
+    customOption,
+    ...(noTemplate ? [noTemplateOption] : []),
+    ...(inheritedOption ? [{ ...inheritedOption, value: "inherit" }] : []),
+  ];
   const selection =
-    value === "inherit"
-      ? inheritedOption
-      : selectedOption ??
-        (value.startsWith("profile:")
-          ? {
-              label: t("customerPortal.hierarchy.unknownTemplate", { id: value.slice("profile:".length) }),
-              summary: "",
-            }
-          : undefined);
+    options.find((option) => option.value === value) ??
+    (value.startsWith("profile:")
+      ? { label: t("customerPortal.hierarchy.unknownTemplate", { id: value.slice("profile:".length) }), summary: "" }
+      : undefined);
   return (
     <Select value={value} disabled={disabled} onValueChange={onChange}>
       <SelectTrigger aria-label={title} className="w-full gap-4 px-3 py-3 data-[size=default]:h-auto">
@@ -118,6 +125,14 @@ export function CustomerBudgetSourceSelect({
           </SelectItem>
         ))}
         {profileOptions.length > 0 && <SelectSeparator />}
+        {noTemplate && (
+          <SelectItem value="none" label={t("customerPortal.hierarchy.noTemplate")} className="py-3">
+            <LimitOptionContent
+              label={t("customerPortal.hierarchy.noTemplate")}
+              summary={t("customerPortal.hierarchy.noTemplateHelp")}
+            />
+          </SelectItem>
+        )}
         <SelectItem
           value={customOption.value}
           label={t("customerPortal.createDialog.enterCustomLimits")}
@@ -299,6 +314,7 @@ export default function CustomerLimitsFields({
   idPrefix,
   loading = false,
   customHint,
+  inheritedOption,
 }: {
   fields: CustomerLimits;
   disabled: boolean;
@@ -309,9 +325,11 @@ export default function CustomerLimitsFields({
   idPrefix: string;
   loading?: boolean;
   customHint?: string;
+  inheritedOption?: { label: string; summary: string };
 }) {
   const isCustom = profiles === undefined || fields.budgetMode === "custom";
   const selectSource = (value: string | null) => {
+    if (value === "inherit") return onChange({ budgetMode: "inherit" });
     if (value === "custom") return onChange({ budgetMode: "custom" });
     const profile = profiles?.find((group) => `profile:${group.budget_id}` === value);
     if (profile) onChange({ budgetMode: "profile", budgetId: profile.budget_id });
@@ -327,11 +345,12 @@ export default function CustomerLimitsFields({
       {profiles !== undefined && (
         <CustomerBudgetSourceSelect
           profiles={profiles}
-          value={isCustom ? "custom" : `profile:${fields.budgetId}`}
+          value={fields.budgetMode === "profile" ? `profile:${fields.budgetId}` : fields.budgetMode}
           title={title}
           disabled={disabled}
           loading={loading}
           onChange={selectSource}
+          inheritedOption={fields.budgetMode === "inherit" ? inheritedOption : undefined}
         />
       )}
       {isCustom && (

@@ -1,11 +1,45 @@
 import { apiClient } from "@/components/networking";
 import type { components } from "@/lib/http/schema";
 import i18n from "@/i18n/i18n";
+import { fetchClient } from "@/lib/http/api";
+import type { CustomerHierarchyPatch } from "./customerHierarchyForms";
 
 type Organization = components["schemas"]["Organization"];
 type Team = components["schemas"]["Team"];
 type Member = components["schemas"]["CustomerMember"];
 type Collection = "customer_organizations" | "customer_teams" | "customer_members";
+
+export async function saveCustomerHierarchy(id: string, patch: CustomerHierarchyPatch): Promise<boolean> {
+  switch (patch.kind) {
+    case "organization":
+      return Boolean(
+        (
+          await fetchClient.PATCH("/management/v1/customer_organizations/{customer_org_id}", {
+            params: { path: { customer_org_id: id } },
+            body: patch.body,
+          })
+        ).data,
+      );
+    case "team":
+      return Boolean(
+        (
+          await fetchClient.PATCH("/management/v1/customer_teams/{customer_team_id}", {
+            params: { path: { customer_team_id: id } },
+            body: patch.body,
+          })
+        ).data,
+      );
+    case "member":
+      return Boolean(
+        (
+          await fetchClient.PATCH("/management/v1/customer_members/{customer_member_id}", {
+            params: { path: { customer_member_id: id } },
+            body: patch.body,
+          })
+        ).data,
+      );
+  }
+}
 
 export interface CustomerHierarchyScope {
   org: string;

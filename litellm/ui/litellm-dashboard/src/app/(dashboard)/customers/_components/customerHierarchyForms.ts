@@ -1,9 +1,17 @@
 import type { components } from "@/lib/http/schema";
 
+import {
+  budgetEditorFields,
+  compactBudgetEditorValue,
+  parseBudget,
+  type Budget,
+  type BudgetEditorFields,
+} from "./customerBudgetForm";
+export { budgetFields, parseBudget, type BudgetFields } from "./customerBudgetForm";
+
 export type Organization = components["schemas"]["Organization"];
 export type Team = components["schemas"]["Team"];
 export type Member = components["schemas"]["CustomerMember"];
-type Budget = components["schemas"]["Budget"];
 
 export type CustomerHierarchyEntity =
   | { kind: "organization"; record: Organization }
@@ -24,18 +32,8 @@ export type CustomerHierarchyPatch =
   | { kind: "team"; body: components["schemas"]["TeamPatch"] }
   | { kind: "member"; body: components["schemas"]["MemberPatch"] };
 
-export interface BudgetFields {
-  maxBudget: string;
-  softBudget: string;
-  budgetDuration: string;
-  tpm: string;
-  rpm: string;
-  allowedModels: readonly string[];
-}
-
-export interface CustomerHierarchyFields extends BudgetFields {
+export interface CustomerHierarchyFields extends BudgetEditorFields {
   alias: string;
-  budgetEnabled: boolean;
   templateId: string;
   overrideExpiry: string;
 }
@@ -66,23 +64,12 @@ export const customerEntityId = (entity: CustomerHierarchyEntity): string => {
 export const customerEntityLabel = (entity: CustomerHierarchyEntity): string =>
   entity.record.alias || customerEntityId(entity);
 
-const asText = (value: number | null | undefined): string => (value == null ? "" : String(value));
-
 const localDateTime = (value: string | null | undefined): string => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
-
-export const budgetFields = (budget: Budget | null | undefined): BudgetFields => ({
-  maxBudget: asText(budget?.max_budget),
-  softBudget: asText(budget?.soft_budget),
-  budgetDuration: budget?.budget_duration ?? "",
-  tpm: asText(budget?.tpm_limit),
-  rpm: asText(budget?.rpm_limit),
-  allowedModels: budget?.allowed_models ?? [],
-});
 
 export const customerHierarchyFields = (entity: CustomerHierarchyEntity): CustomerHierarchyFields => {
   const storedBudget = entity.kind === "member" ? entity.record.budget_override : entity.record.budget;
@@ -92,9 +79,8 @@ export const customerHierarchyFields = (entity: CustomerHierarchyEntity): Custom
       : undefined;
   return {
     alias: entity.record.alias ?? "",
-    budgetEnabled: storedBudget != null,
-    ...budgetFields(storedBudget),
-    ...(monthly ? { maxBudget: asText(monthly.max_budget) } : {}),
+    ...budgetEditorFields(storedBudget),
+    ...(monthly ? { maxBudget: String(monthly.max_budget) } : {}),
     templateId: entity.kind !== "team" ? entity.record.budget_id ?? "" : "",
     overrideExpiry: entity.kind === "member" ? localDateTime(entity.record.budget_override_expires_at) : "",
   };
@@ -107,37 +93,11 @@ export const newCustomerHierarchyFields = (target: CustomerHierarchyCreateTarget
   const isMember = target.kind === "member";
   return {
     alias: "",
+    ...budgetEditorFields(null),
     budgetEnabled: isMember && !template,
-    ...budgetFields(null),
     budgetDuration: "1mo",
     templateId: isMember ? template?.budget_id ?? "" : "",
     overrideExpiry: "",
-  };
-};
-
-const numericLimit = (raw: string, integer = false): number | null | undefined => {
-  const value = raw.trim();
-  if (!value) return null;
-  if (!(integer ? /^\d+$/ : /^(?:\d+(?:\.\d*)?|\.\d+)$/).test(value)) return undefined;
-  const number = Number(value);
-  if (!Number.isFinite(number) || (integer && !Number.isSafeInteger(number))) return undefined;
-  return number;
-};
-
-export const parseBudget = (fields: BudgetFields): Budget | null => {
-  const max = numericLimit(fields.maxBudget);
-  const soft = numericLimit(fields.softBudget);
-  const tpm = numericLimit(fields.tpm, true);
-  const rpm = numericLimit(fields.rpm, true);
-  if ([max, soft, tpm, rpm].includes(undefined)) return null;
-  const models = fields.allowedModels.map((model) => model.trim()).filter(Boolean);
-  return {
-    max_budget: max,
-    soft_budget: soft,
-    tpm_limit: tpm,
-    rpm_limit: rpm,
-    budget_duration: fields.budgetDuration.trim() || null,
-    allowed_models: models.length ? [...new Set(models)] : null,
   };
 };
 
@@ -145,7 +105,8 @@ export const BUDGET_FIELDS = ["budgetEnabled", "maxBudget", "softBudget", "budge
 
 const budgetChanged = (fields: CustomerHierarchyFields, initial: CustomerHierarchyFields): boolean =>
   BUDGET_FIELDS.some((key) => fields[key] !== initial[key]) ||
-  JSON.stringify(fields.allowedModels) !== JSON.stringify(initial.allowedModels);
+  JSON.stringify(fields.allowedModels) !== JSON.stringify(initial.allowedModels) ||
+  JSON.stringify(fields.budgetWindows) !== JSON.stringify(initial.budgetWindows);
 
 const aliasChanges = (initial: string | null | undefined, value: string): { alias?: string | null } =>
   value === (initial ?? "") ? {} : { alias: value.trim() || null };
@@ -195,10 +156,13 @@ export const buildCustomerHierarchyPatch = (
     return { ok: true, patch: { kind: "organization", body: { ...aliasPatch, budget_id: fields.templateId } } };
   }
   const changed = budgetChanged(fields, initial) || groupChanged;
-  const parsed = fields.budgetEnabled && changed ? parseBudget(fields) : null;
+  const original = entity.kind === "member" ? entity.record.budget_override : entity.record.budget;
+  const parsed = compactBudgetEditorValue({ ...fields, budgetEnabled: fields.budgetEnabled && changed }, original);
+  if (!parsed.ok) return { ok: false, error: "invalidNumber" };
   const budget =
-    parsed && entity.kind === "organization" ? organizationBudget(entity.record.budget, parsed, groupChanged) : parsed;
-  if (fields.budgetEnabled && changed && budget === null) return { ok: false, error: "invalidNumber" };
+    parsed.value && entity.kind === "organization"
+      ? organizationBudget(original, parsed.value, groupChanged)
+      : parsed.value;
   if (entity.kind === "organization" || entity.kind === "team") {
     return {
       ok: true,
