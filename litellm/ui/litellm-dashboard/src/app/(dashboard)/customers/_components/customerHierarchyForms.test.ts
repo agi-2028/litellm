@@ -279,6 +279,7 @@ describe("customer hierarchy creation payloads", () => {
       create: {
         kind: "member",
         body: {
+          parent_org_id: "org-1",
           parent_team_ids: ["team-1"],
           alias: null,
           budget_id: "standard-template",
@@ -303,6 +304,30 @@ describe("customer hierarchy creation payloads", () => {
           customer_member_id: "new-member",
           budget_id: null,
           budget_override: { max_budget: 0, allowed_models: ["gpt-4.1"] },
+        },
+      },
+    });
+  });
+
+  it("creates organization members in the canonical default team", () => {
+    const target: CustomerHierarchyCreateTarget = { kind: "member", organization: organizationWithTemplate };
+    expect(buildCustomerHierarchyCreate(target, newCustomerHierarchyFields(target), "new-member")).toMatchObject({
+      ok: true,
+      create: {
+        defaultTeamOrganizationId: "org-1",
+        body: { parent_org_id: "org-1", parent_team_ids: ["org-1:default"], customer_member_id: "new-member" },
+      },
+    });
+  });
+
+  it("keeps the default group's spend duration when only rate limits are customized", () => {
+    const fields = { ...newCustomerHierarchyFields(memberTarget), budgetEnabled: true, tpm: "20000" };
+    expect(buildCustomerHierarchyCreate(memberTarget, fields, "")).toMatchObject({
+      ok: true,
+      create: {
+        body: {
+          budget_id: "standard-template",
+          budget_override: { max_budget: null, budget_duration: null, tpm_limit: 20000, rpm_limit: null },
         },
       },
     });

@@ -119,7 +119,7 @@ describe("CreateCustomerDialog", () => {
     fireEvent.change(screen.getByLabelText("Group 2 tokens per minute"), { target: { value: "5000" } });
     fireEvent.change(screen.getByLabelText("Group 2 requests per minute"), { target: { value: "10" } });
     await user.click(screen.getByRole("combobox", { name: "Reset period" }));
-    await user.click(screen.getByRole("option", { name: "/ year" }));
+    await user.click(await screen.findByRole("option", { name: "/ year" }));
     const profile = screen.getByRole("combobox", { name: "Customer organization limits" });
     await waitFor(() => expect(profile).toBeEnabled());
     await user.click(profile);
@@ -132,8 +132,8 @@ describe("CreateCustomerDialog", () => {
     expect(screen.queryByLabelText("Spend limit (USD)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Tokens per minute")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Requests per minute")).not.toBeInTheDocument();
-    fireEvent.keyDown(profile, { key: "ArrowDown" });
-    await user.click(await screen.findByRole("option", { name: "Enter custom limits instead" }));
+    await user.click(profile);
+    await user.keyboard("e{Enter}");
     expect(screen.getByLabelText("Spend limit (USD)")).toHaveValue(15000);
     expect(screen.getByLabelText("Tokens per minute")).toHaveValue(25000);
     expect(screen.getByLabelText("Requests per minute")).toHaveValue(120);

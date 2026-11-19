@@ -137,16 +137,12 @@ function hierarchyRows({ hierarchy, selected, scope }: ScopeProps) {
 }
 
 function HierarchyCreateAction({ hierarchy, selected, scope }: ScopeProps) {
-  const { customerHierarchyHref } = useCustomerHierarchyLinks();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  if (hierarchy.childTab === "members" && selected.team === null)
-    return (
-      <Button variant="outline" render={<a href={`${customerHierarchyHref("manage", scope)}&tab=teams`} />}>
-        {t("customerPortal.hierarchy.chooseTeam")}
-      </Button>
-    );
-  const parent = selected.team ? { kind: "member" as const, team: selected.team } : { kind: "team" as const };
+  const parent =
+    hierarchy.childTab === "members"
+      ? { kind: "member" as const, team: selected.team ?? undefined }
+      : { kind: "team" as const };
   const onCreated = (entity: CreatedCustomerHierarchyEntity) => {
     hierarchy.refresh();
     hierarchy.openCreatedScope(scope, entity);
@@ -155,7 +151,7 @@ function HierarchyCreateAction({ hierarchy, selected, scope }: ScopeProps) {
     <>
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus aria-hidden="true" className="size-4" />
-        {t(selected.team ? "customerPortal.hierarchy.createMember" : "customerPortal.hierarchy.createTeam")}
+        {t(parent.kind === "member" ? "customerPortal.hierarchy.createMember" : "customerPortal.hierarchy.createTeam")}
       </Button>
       <CreateCustomerHierarchyDialog
         {...parent}
@@ -194,9 +190,10 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
     );
   const rows = hierarchyRows(props);
   const pages = Math.max(1, children.data.meta.total_pages);
-  const emptyMembers = hierarchy.memberSearch
-    ? "customerPortal.hierarchy.noMemberMatches"
+  const emptyScope = showTeam
+    ? "customerPortal.hierarchy.emptyOrganizationMembers"
     : "customerPortal.hierarchy.emptyMembers";
+  const emptyMembers = hierarchy.memberSearch ? "customerPortal.hierarchy.noMemberMatches" : emptyScope;
   const monthly = new Map(childUsage.data?.monthly.map((row) => [row.id, row]));
   const yearly = new Map(childUsage.data?.yearly.map((row) => [row.id, row.spend]));
   return (

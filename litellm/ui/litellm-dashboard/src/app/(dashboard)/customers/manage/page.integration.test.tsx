@@ -488,10 +488,10 @@ describe("customer hierarchy management", () => {
     expect(screen.getByRole("link", { name: "Customer members", exact: true })).toHaveAttribute("aria-current", "page");
     expect(within(table).getByRole("columnheader", { name: "Customer team" })).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "team-a" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Choose a customer team" })).toHaveAttribute(
-      "href",
-      `${uiHref("customers/manage")}?org=org-1&tab=teams`,
-    );
+    await user.click(screen.getByRole("button", { name: "Create customer member" }));
+    expect(screen.getByRole("dialog", { name: "Create customer member" })).toHaveTextContent("Example customer");
+    expect(screen.getByRole("combobox", { name: "Member limits" })).toHaveTextContent("Custom");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(await screen.findByRole("button", { name: "Member Two" }));
     expect(await screen.findByRole("heading", { name: "Member Two" })).toBeInTheDocument();

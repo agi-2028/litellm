@@ -13,11 +13,11 @@ export type CustomerHierarchyEntity =
 export type CreatedCustomerHierarchyEntity = Extract<CustomerHierarchyEntity, { kind: "team" | "member" }>;
 export type CustomerHierarchyCreateTarget =
   | { kind: "team"; organization: Organization }
-  | { kind: "member"; organization: Organization; team: Team };
+  | { kind: "member"; organization: Organization; team?: Team };
 
 export type CustomerHierarchyCreate =
   | { kind: "team"; body: components["schemas"]["TeamCreate"] }
-  | { kind: "member"; body: components["schemas"]["MemberCreate"] };
+  | { kind: "member"; body: components["schemas"]["MemberCreate"]; defaultTeamOrganizationId?: string };
 
 export type CustomerHierarchyPatch =
   | { kind: "organization"; body: components["schemas"]["OrganizationPatch"] }
@@ -109,6 +109,7 @@ export const newCustomerHierarchyFields = (target: CustomerHierarchyCreateTarget
     alias: "",
     budgetEnabled: isMember && !template,
     ...budgetFields(null),
+    budgetDuration: "1mo",
     templateId: isMember ? template?.budget_id ?? "" : "",
     overrideExpiry: "",
   };
@@ -228,12 +229,19 @@ const createMember = (
     ok: true,
     create: {
       kind: "member",
+      ...(!target.team ? { defaultTeamOrganizationId: target.organization.customer_org_id } : {}),
       body: {
-        parent_team_ids: [target.team.customer_team_id],
+        parent_org_id: target.organization.customer_org_id,
+        parent_team_ids: [target.team?.customer_team_id ?? `${target.organization.customer_org_id}:default`],
         alias: common.alias,
         ...(common.identifier ? { customer_member_id: common.identifier } : {}),
         budget_id: templateId,
-        budget_override: common.budget,
+        budget_override: common.budget
+          ? {
+              ...common.budget,
+              budget_duration: common.budget.max_budget != null ? common.budget.budget_duration : null,
+            }
+          : null,
         budget_override_expires_at: expiry?.toISOString() ?? null,
       },
     },

@@ -107,20 +107,22 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
                 }}
               />
             </fieldset>
+          </div>
+          <div className="shrink-0 border-t bg-muted/20 px-6 py-4">
             {error && (
-              <p role="alert" className="mt-4 text-sm text-destructive">
+              <p role="alert" className="mb-3 text-sm text-destructive">
                 {t(`customerPortal.createDialog.errors.${error}`)}
               </p>
             )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={create.isPending}>
+                {t("customerPortal.common.cancel")}
+              </Button>
+              <Button type="submit" disabled={!fields.name.trim() || create.isPending}>
+                {create.isPending ? t("customerPortal.createDialog.creating") : t("customerPortal.createDialog.submit")}
+              </Button>
+            </DialogFooter>
           </div>
-          <DialogFooter className="shrink-0 border-t bg-muted/20 px-6 py-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={create.isPending}>
-              {t("customerPortal.common.cancel")}
-            </Button>
-            <Button type="submit" disabled={!fields.name.trim() || create.isPending}>
-              {create.isPending ? t("customerPortal.createDialog.creating") : t("customerPortal.createDialog.submit")}
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

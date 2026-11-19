@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,13 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import CustomerHierarchyBudgetFields from "./CustomerHierarchyBudgetFields";
+import { createCustomerHierarchyEntity } from "./createCustomerHierarchyEntity";
+import CustomerLimitsFields from "./CustomerLimitsFields";
 import {
   buildCustomerHierarchyCreate,
   newCustomerHierarchyFields,
   CUSTOMER_HIERARCHY_FORM_ERRORS,
   type CreatedCustomerHierarchyEntity,
-  type CustomerHierarchyCreate,
   type CustomerHierarchyCreateTarget,
   type CustomerHierarchyFields,
 } from "./customerHierarchyForms";
@@ -32,17 +31,6 @@ type Props = CustomerHierarchyCreateTarget & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (entity: CreatedCustomerHierarchyEntity) => void;
-};
-
-const createEntity = async (create: CustomerHierarchyCreate): Promise<CreatedCustomerHierarchyEntity | null> => {
-  if (create.kind === "team") {
-    const result = await fetchClient.POST("/management/v1/customer_teams", { body: create.body });
-    if (result.response.status !== 201 || !result.data) return null;
-    return { kind: "team", record: result.data };
-  }
-  const result = await fetchClient.POST("/management/v1/customer_members", { body: create.body });
-  if (result.response.status !== 201 || !result.data) return null;
-  return { kind: "member", record: result.data };
 };
 
 function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending: boolean) => void }) {
@@ -57,12 +45,20 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
   const title = t(
     props.kind === "team" ? "customerPortal.hierarchy.createTeam" : "customerPortal.hierarchy.createMember",
   );
-  const hint =
-    props.kind === "team"
-      ? t("customerPortal.hierarchy.createTeamHint", {
+  const team = props.kind === "member" ? props.team : undefined;
+  const hint = team
+    ? t("customerPortal.hierarchy.createMemberHint", { team: team.alias || team.customer_team_id })
+    : t(
+        props.kind === "team"
+          ? "customerPortal.hierarchy.createTeamHint"
+          : "customerPortal.hierarchy.createOrganizationMemberHint",
+        {
           organization: props.organization.alias || props.organization.customer_org_id,
-        })
-      : t("customerPortal.hierarchy.createMemberHint", { team: props.team.alias || props.team.customer_team_id });
+        },
+      );
+  const defaultGroup = props.organization.default_budgets.find(
+    (group) => group.budget_id === props.organization.default_budget_template_id,
+  );
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,7 +70,7 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
     setPending(true);
     setError(null);
     try {
-      const created = await createEntity(result.create);
+      const created = await createCustomerHierarchyEntity(result.create);
       if (!created) {
         setError(t("customerPortal.hierarchy.createFailed"));
         return;
@@ -126,13 +122,46 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
               </p>
             </div>
           </div>
-          <CustomerHierarchyBudgetFields
-            kind={props.kind}
-            organization={props.organization}
-            fields={fields}
-            onChange={update}
-            idPrefix="create-hierarchy"
-            operation="create"
+          <CustomerLimitsFields
+            fields={{
+              budgetMode: fields.budgetEnabled ? "custom" : "profile",
+              budgetId: fields.templateId,
+              budgetAmount: fields.maxBudget,
+              budgetDuration: fields.budgetDuration === "12mo" ? "12mo" : "1mo",
+              tpm: fields.tpm,
+              rpm: fields.rpm,
+            }}
+            profiles={props.kind === "member" ? props.organization.default_budgets : undefined}
+            disabled={pending}
+            idPrefix="create-member"
+            title={t(
+              props.kind === "member"
+                ? "customerPortal.hierarchy.memberLimits"
+                : "customerPortal.hierarchy.budgetTitle",
+            )}
+            description={t(
+              props.kind === "member"
+                ? "customerPortal.hierarchy.memberLimitsHelp"
+                : "customerPortal.hierarchy.teamLimitsHelp",
+            )}
+            customHint={
+              props.kind === "member" && defaultGroup
+                ? t("customerPortal.hierarchy.customMemberLimitsHelp", { group: defaultGroup.name })
+                : undefined
+            }
+            onChange={(patch) =>
+              setFields((current) => ({
+                ...current,
+                ...(props.kind === "team" ? { budgetEnabled: true } : {}),
+                ...(patch.budgetMode ? { budgetEnabled: patch.budgetMode === "custom" } : {}),
+                ...(patch.budgetMode === "custom" ? { templateId: defaultGroup?.budget_id ?? "" } : {}),
+                ...(patch.budgetId !== undefined ? { templateId: patch.budgetId } : {}),
+                ...(patch.budgetAmount !== undefined ? { maxBudget: patch.budgetAmount } : {}),
+                ...(patch.budgetDuration !== undefined ? { budgetDuration: patch.budgetDuration } : {}),
+                ...(patch.tpm !== undefined ? { tpm: patch.tpm } : {}),
+                ...(patch.rpm !== undefined ? { rpm: patch.rpm } : {}),
+              }))
+            }
           />
         </fieldset>
         {error && (
@@ -155,7 +184,10 @@ function CreateForm(props: Props & { pending: boolean; onPendingChange: (pending
 
 export default function CreateCustomerHierarchyDialog(props: Props) {
   const [pending, setPending] = useState(false);
-  const parent = props.kind === "team" ? props.organization.customer_org_id : props.team.customer_team_id;
+  const parent =
+    props.kind === "team"
+      ? props.organization.customer_org_id
+      : props.team?.customer_team_id ?? props.organization.customer_org_id;
   return (
     <Dialog
       open={props.open}

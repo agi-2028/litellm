@@ -13,8 +13,8 @@ const columns = [
   ["monthlyColumn", "w-[13%]"],
   ["yearlyColumn", "w-[13%]"],
   ["tpmColumn", "w-[12%]"],
-  ["rpmColumn", "w-[10%]"],
-  ["capColumn", "w-[25%]"],
+  ["rpmColumn", "w-[12%]"],
+  ["capColumn", "w-[23%]"],
 ] as const;
 const budgetFields = [
   ["monthlyBudget", "monthly"],

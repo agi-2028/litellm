@@ -2,7 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SearchSelect } from "@/components/shared/SearchSelect";
@@ -13,9 +21,15 @@ import { $api, fetchClient } from "@/lib/http/api";
 import { ApiError, extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
-import { appBudgetFields, appBudgetValue, type App, type AppResource, type AppOrganization } from "./appForms";
-import AppBudgetEditor from "./AppBudgetEditor";
-import AppProfileSelect from "./AppProfileSelect";
+import {
+  compactAppBudgetFields,
+  compactAppBudgetValue,
+  type App,
+  type AppResource,
+  type AppOrganization,
+} from "./appForms";
+import AppBudgetCompactFields from "./AppBudgetCompactFields";
+import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import AppBudgetLimits from "./AppBudgetLimits";
 import { appBudgetWindows } from "./appBudgetPresentation";
 import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
@@ -99,9 +113,24 @@ export default function CustomerOrganizationApps({
             <DialogTitle>{adding ? t("apps.addBudget") : t("apps.budgetFor", { alias: editing?.alias })}</DialogTitle>
             <DialogDescription>{t("apps.organizationHint")}</DialogDescription>
           </DialogHeader>
-          {adding && resourceType && (
-            <OrganizationAppPicker resources={resources} selected={editing} pending={pending} onChange={setEditing} />
-          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="app-budget-customer" className="text-sm text-muted-foreground">
+                {t("apps.customer")}
+              </label>
+              <Input id="app-budget-customer" value={organizationAlias || organizationId} readOnly />
+            </div>
+            {adding && resourceType ? (
+              <OrganizationAppPicker resources={resources} selected={editing} pending={pending} onChange={setEditing} />
+            ) : (
+              <div className="space-y-2">
+                <label htmlFor="app-budget-resource" className="text-sm text-muted-foreground">
+                  {t("apps.alias")}
+                </label>
+                <Input id="app-budget-resource" value={editing?.alias ?? ""} readOnly />
+              </div>
+            )}
+          </div>
           {editing && (
             <OrganizationApp
               key={`${editing.resource_type}:${editing.resource_id}`}
@@ -133,7 +162,7 @@ function OrganizationAppPicker({
   const { t } = useTranslation();
   return (
     <div className="space-y-2">
-      <label htmlFor="organization-app" className="block text-sm font-medium">
+      <label htmlFor="organization-app" className="block text-sm text-muted-foreground">
         {t("apps.selectApp")}
       </label>
       <SearchSelect
@@ -362,27 +391,34 @@ function OrganizationAppForm({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
   const [source, setSource] = useState(() => organizationBudgetSource(row));
   const [profile, setProfile] = useState(row?.tier_budget_id ?? "");
   const [override, setOverride] = useState(() =>
-    appBudgetFields(row?.budget_override_id ? row.effective_budget : null),
+    compactAppBudgetFields(row?.budget_override_id ? row.effective_budget : null),
   );
   const [member, setMember] = useState(() =>
-    appBudgetFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
+    compactAppBudgetFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
   );
   const [error, setError] = useState<string | null>(null);
   const changeSource = (value: string | null) => {
-    if (value !== "inherit" && value !== "profile" && value !== "custom") return;
-    setSource(value);
-    if (value === "custom") setOverride((current) => ({ ...current, budgetEnabled: true }));
+    if (value === "custom" || value === "inherit") {
+      setSource(value);
+      return;
+    }
+    const group = groups.data?.default_budgets.find((group) => `profile:${group.budget_id}` === value);
+    if (group) {
+      setSource("profile");
+      setProfile(group.budget_id);
+    }
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    const budget = appBudgetValue(
+    const budget = compactAppBudgetValue(
       { ...override, budgetEnabled: source === "custom" },
       row?.budget_override_id ? row.effective_budget : null,
     );
-    const memberBudget = appBudgetValue(
+    const memberBudget = compactAppBudgetValue(
       member,
       row?.customer_member_budget_id ? row.effective_customer_member_budget : null,
     );
@@ -423,65 +459,63 @@ function OrganizationAppForm({
   };
   return (
     <form onSubmit={save} className="space-y-5" aria-label={t("apps.organizationSettings")}>
-      <h3 className="font-semibold">{t("apps.budgetFor", { alias: resource.alias })}</h3>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <label htmlFor="app-budget-customer" className="block text-sm">
-            {t("apps.customer")}
-          </label>
-          <Input id="app-budget-customer" value={organizationAlias || organizationId} readOnly />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="app-budget-resource" className="block text-sm">
-            {t("apps.alias")}
-          </label>
-          <Input id="app-budget-resource" value={resource.alias} readOnly />
-        </div>
-      </div>
-      <div className="max-w-md space-y-1.5">
-        <label htmlFor="app-budget-source" className="block text-sm">
-          {t("apps.source")}
-        </label>
-        <SearchSelect
-          id="app-budget-source"
-          className="w-full"
-          value={source}
-          allowClear={false}
-          onValueChange={changeSource}
-          options={[
-            { value: "inherit", label: t("apps.appDefault") },
-            { value: "profile", label: t("apps.profile") },
-            { value: "custom", label: t("apps.customBudget") },
-          ]}
-        />
-      </div>
-      {source === "profile" && (
-        <div className="max-w-md">
-          <AppProfileSelect
-            id="organization-app-profile"
-            value={profile}
-            onChange={setProfile}
-            emptyLabel={t("apps.chooseProfile")}
+      <fieldset disabled={pending} className="space-y-6">
+        <section aria-labelledby="app-budget-source-heading" className="space-y-4">
+          <div className="space-y-1">
+            <h3 id="app-budget-source-heading" className="font-semibold">
+              {t("apps.source")}
+            </h3>
+            <p className="text-sm text-muted-foreground">{t("apps.customerAppLimitHint")}</p>
+          </div>
+          <CustomerBudgetSourceSelect
+            profiles={groups.data?.default_budgets ?? []}
+            value={source === "profile" ? `profile:${profile}` : source}
+            onChange={changeSource}
+            title={t("apps.source")}
+            disabled={pending}
+            loading={groups.isPending}
+            inheritedOption={{ label: t("apps.appDefault"), summary: t("apps.appDefaultHint") }}
           />
-        </div>
-      )}
-      {source === "custom" && (
-        <AppBudgetEditor
-          title={t("apps.customBudget")}
-          optional={false}
-          id="org-app-override"
-          fields={{ ...override, budgetEnabled: true }}
-          onChange={setOverride}
-        />
-      )}
-      <AppBudgetEditor
-        title={t("apps.organizationMemberDefault")}
-        id="org-app-member"
-        fields={member}
-        onChange={setMember}
-      />
-      <p className="text-xs text-muted-foreground">{t("apps.memberDefaultHint")}</p>
-      <p className="text-sm text-muted-foreground">
+          {groups.isError && (
+            <ErrorState message={extractProxyErrorMessage(groups.error)} onRetry={() => void groups.refetch()} />
+          )}
+          {source === "custom" && (
+            <AppBudgetCompactFields
+              fields={override}
+              original={row?.budget_override_id ? row.effective_budget : null}
+              onChange={setOverride}
+              disabled={pending}
+              id="org-app-override"
+            />
+          )}
+        </section>
+        <section aria-labelledby="app-member-limits-heading" className="space-y-4 border-t pt-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h3 id="app-member-limits-heading" className="font-semibold">
+                {t("apps.optionalMemberLimits")}
+              </h3>
+              <p className="text-sm text-muted-foreground">{t("apps.optionalMemberLimitsHint")}</p>
+            </div>
+            <Switch
+              aria-label={t("apps.enableMemberLimits")}
+              checked={member.budgetEnabled}
+              disabled={pending}
+              onCheckedChange={(budgetEnabled) => setMember((current) => ({ ...current, budgetEnabled }))}
+            />
+          </div>
+          {member.budgetEnabled && (
+            <AppBudgetCompactFields
+              fields={member}
+              original={row?.customer_member_budget_id ? row.effective_customer_member_budget : null}
+              onChange={setMember}
+              disabled={pending}
+              id="org-app-member"
+            />
+          )}
+        </section>
+      </fieldset>
+      <p className="text-xs text-muted-foreground">
         {t("apps.onlyThisPair", { customer: organizationAlias || organizationId, alias: resource.alias })}
       </p>
       {error && (
@@ -489,14 +523,14 @@ function OrganizationAppForm({
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
-          {t("apps.saveBudget")}
-        </Button>
+      <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
           {t("apps.cancel")}
         </Button>
-      </div>
+        <Button type="submit" disabled={pending}>
+          {t("apps.saveBudget")}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }
