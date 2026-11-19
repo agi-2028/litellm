@@ -16,7 +16,7 @@ import CustomerBudgetCompactFields from "./CustomerBudgetCompactFields";
 import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
 import CustomerOrganizationBudgetFields from "./CustomerOrganizationBudgetFields";
 import { CustomerRateLimitFields } from "./CustomerRateLimits";
-import { CustomerBudgetSourceSelect, CustomerCustomBudgetFields } from "./CustomerLimitsFields";
+import { CustomerBudgetSourceSelect } from "./CustomerLimitsFields";
 
 interface Props {
   kind: CustomerHierarchyEntity["kind"];
@@ -58,10 +58,6 @@ export default function CustomerHierarchyBudgetFields({
     if (!value?.startsWith("profile:")) return;
     update("templateId", value.slice("profile:".length));
     update("budgetEnabled", false);
-  };
-  const updateCustom = <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) => {
-    update("budgetEnabled", true);
-    update(key, value);
   };
   const updateCompact = (next: BudgetEditorFields) => {
     for (const key of BUDGET_FIELDS) update(key, next[key]);
@@ -106,7 +102,7 @@ export default function CustomerHierarchyBudgetFields({
           </div>
         </div>
       )}
-      {customMember && compact && (
+      {customMember && (
         <CustomerBudgetCompactFields
           fields={fields}
           original={original}
@@ -114,9 +110,6 @@ export default function CustomerHierarchyBudgetFields({
           disabled={false}
           id={idPrefix}
         />
-      )}
-      {customMember && !compact && (
-        <CustomerCustomBudgetFields fields={fields} onChange={updateCustom} idPrefix={idPrefix} />
       )}
       {kind === "team" && fields.budgetEnabled && (
         <CustomerBudgetFields fields={fields} onChange={update} idPrefix={idPrefix} />
