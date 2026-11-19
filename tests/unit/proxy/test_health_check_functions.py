@@ -459,6 +459,46 @@ async def test_save_background_health_checks_to_db():
     assert call_kwargs["checked_by"] == "background_health_check"
 
 
+
+@pytest.mark.asyncio
+async def test_save_background_health_checks_to_db_writes_a_name_row_for_each_public_wildcard_model():
+    mock_prisma = MagicMock()
+    mock_prisma.db.query_raw = AsyncMock(return_value=[])
+    mock_prisma.save_health_check_result = AsyncMock(return_value={"id": "row"})
+    model_list = [
+        {"model_name": "openai/*", "model_info": {"id": "wildcard-id"}, "litellm_params": {"model": "openai/*"}},
+    ]
+    healthy_endpoints = [
+        {"model": "openai/*", "model_id": "wildcard-id"},
+        {"model": "openai/gpt-6.1-terra", "model_id": "probe-terra"},
+    ]
+    unhealthy_endpoints = [
+        {"model": "openai/gpt-hub-qa-missing", "model_id": "probe-missing", "error": "model not found"},
+    ]
+
+    persisted = await save_background_health_checks_to_db(
+        mock_prisma,
+        model_list,
+        healthy_endpoints,
+        unhealthy_endpoints,
+        time.time(),
+        "pod-1",
+        public_name_by_probe_id={"probe-terra": "openai/gpt-6.1-terra", "probe-missing": "openai/gpt-hub-qa-missing"},
+    )
+
+    rows = sorted(
+        (call.kwargs["model_name"], call.kwargs["model_id"], call.kwargs["status"], call.kwargs["error_message"])
+        for call in mock_prisma.save_health_check_result.await_args_list
+    )
+    assert (persisted, rows) == (
+        True,
+        [
+            ("openai/*", "wildcard-id", "healthy", None),
+            ("openai/gpt-6.1-terra", None, "healthy", None),
+            ("openai/gpt-hub-qa-missing", None, "unhealthy", "model not found"),
+        ],
+    )
+
 def _two_model_results():
     return {
         ("model-1", "gpt-4"): {

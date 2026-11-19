@@ -853,7 +853,7 @@ def _aggregate_health_check_results(
     model_param_to_info: dict,
     healthy_endpoints: list,
     unhealthy_endpoints: list,
-) -> dict:
+) -> "dict[tuple[str | None, str], _AggregatedHealthResult]":
     """
     Aggregate health check results per unique model.
 
@@ -916,6 +916,42 @@ class _AggregatedHealthResult(TypedDict):
     healthy_count: ReadOnly[int]
     unhealthy_count: ReadOnly[int]
     error_message: ReadOnly[str | None]
+
+
+def _public_name_of(public_name_by_probe_id: Mapping[str, str], endpoint: Mapping[str, object]) -> str | None:
+    probe_id: Final = endpoint.get("model_id")
+    return public_name_by_probe_id.get(probe_id) if isinstance(probe_id, str) else None
+
+
+def _public_name_result(public_name: str, healthy_count: int, errors: Sequence[object]) -> _AggregatedHealthResult:
+    return {
+        "model_name": public_name,
+        "model_id": None,
+        "healthy_count": healthy_count,
+        "unhealthy_count": len(errors),
+        "error_message": next((str(error)[:500] for error in errors if error), None),
+    }
+
+
+def _aggregate_public_name_results(
+    public_name_by_probe_id: Mapping[str, str],
+    healthy_endpoints: Sequence[Mapping[str, object]],
+    unhealthy_endpoints: Sequence[Mapping[str, object]],
+) -> Mapping[tuple[None, str], _AggregatedHealthResult]:
+    healthy_names: Final = tuple(_public_name_of(public_name_by_probe_id, endpoint) for endpoint in healthy_endpoints)
+    failures: Final = tuple(
+        (_public_name_of(public_name_by_probe_id, endpoint), endpoint.get("error")) for endpoint in unhealthy_endpoints
+    )
+    failed_names: Final = tuple(name for name, _ in failures)
+    public_names: Final = frozenset(name for name in (*healthy_names, *failed_names) if name is not None)
+    return MappingProxyType(
+        {
+            (None, name): _public_name_result(
+                name, healthy_names.count(name), tuple(error for failed, error in failures if failed == name)
+            )
+            for name in public_names
+        }
+    )
 
 
 def _new_health_status(result: _AggregatedHealthResult) -> str:
@@ -996,6 +1032,7 @@ async def save_background_health_checks_to_db(
     unhealthy_endpoints: list,
     start_time: float,
     checked_by: str | None = None,
+    public_name_by_probe_id: Mapping[str, str] = MappingProxyType({}),
 ) -> bool:
     """
     Save background health check results to database for each model.
@@ -1018,11 +1055,14 @@ async def save_background_health_checks_to_db(
         model_param_to_info: Final = _build_model_param_to_info_mapping(model_list)
 
         # Step 2: Aggregate health check results per unique model
-        model_results: Final = _aggregate_health_check_results(
-            model_param_to_info,
-            healthy_endpoints,
-            unhealthy_endpoints,
-        )
+        model_results: Final = {
+            **_aggregate_health_check_results(
+                model_param_to_info,
+                healthy_endpoints,
+                unhealthy_endpoints,
+            ),
+            **_aggregate_public_name_results(public_name_by_probe_id, healthy_endpoints, unhealthy_endpoints),
+        }
 
         # Step 3: Get latest health checks for all models in one query to compare status
         latest_checks: Final = await query_latest_health_checks(prisma_client)

@@ -738,6 +738,7 @@ from litellm.proxy.health_check import (
     parse_background_health_check_model_groups,
     perform_health_check,
 )
+from litellm.proxy.health_check_utils.public_wildcard_probes import public_wildcard_probes
 from litellm.proxy.health_endpoints._health_endpoints import router as health_router
 from litellm.proxy.health_endpoints.deployment_warning_endpoints import router as deployment_warning_router
 from litellm.proxy.hooks.model_max_budget_limiter import (  # noqa: F401, RUF100  # legacy module exports
@@ -1560,6 +1561,7 @@ _LOGIN_REQUEST_BODY: Final = TypeAdapter(_LoginRequestBody)
 _LOGIN_EXCHANGE_REQUEST_BODY: Final = TypeAdapter(_LoginExchangeRequestBody)
 _ANTHROPIC_BETA_HEADERS_RELOAD_CONFIG: Final = TypeAdapter(_AnthropicBetaHeadersReloadConfig)
 _LITELLM_PARAMS_COPY: Final = TypeAdapter(dict[str, object])
+_HEALTH_CHECK_DEPLOYMENTS: Final = TypeAdapter(list[Mapping[str, object]])
 _WEBSEARCH_INTERCEPTION_LITELLM_SETTINGS: Final = TypeAdapter(_WebsearchInterceptionLitellmSettings)
 _UNTYPED_VALUE: Final = TypeAdapter(object)
 
@@ -5100,6 +5102,7 @@ def _schedule_background_health_check_db_save(
     unhealthy_endpoints: list,
     pod_lock_manager: PodLockManager | None = None,
     lock_ttl: int | None = None,
+    public_name_by_probe_id: Mapping[str, str] = MappingProxyType({}),
 ) -> None:
     """Fire-and-forget: persist health check results to DB if prisma is available."""
     if prisma_client is None:
@@ -5120,6 +5123,7 @@ def _schedule_background_health_check_db_save(
         unhealthy_endpoints,
         start_time,
         checked_by=checked_by,
+        public_name_by_probe_id=public_name_by_probe_id,
     )
     asyncio.create_task(_window_gated_health_check_db_save(save, pod_lock_manager, lock_ttl))
 
@@ -5315,7 +5319,10 @@ async def _run_background_health_check():
                 "background_health_check_model_groups matched no deployments; groups=%s",
                 sorted(scoped_model_groups),
             )
-        model_count_enabled = len(_llm_model_list)
+        enabled_deployments = _HEALTH_CHECK_DEPLOYMENTS.validate_python(_llm_model_list)
+        probes = public_wildcard_probes(llm_router, litellm.public_model_groups, enabled_deployments)
+        checked_model_list = [*enabled_deployments, *probes.deployments]
+        model_count_enabled = len(checked_model_list)
         expected_peak_in_flight = model_count_enabled
         if isinstance(health_check_concurrency, int) and health_check_concurrency > 0 and model_count_enabled > 0:
             expected_peak_in_flight = min(model_count_enabled, health_check_concurrency)
@@ -5347,11 +5354,11 @@ async def _run_background_health_check():
         if shared_health_manager is not None:
             try:
                 (
-                    healthy_endpoints,
-                    unhealthy_endpoints,
+                    checked_healthy,
+                    checked_unhealthy,
                     _exceptions_by_model_id,
                 ) = await shared_health_manager.perform_shared_health_check(
-                    model_list=_llm_model_list,
+                    model_list=checked_model_list,
                     details=details_bool,
                     max_concurrency=health_check_concurrency,
                     router=llm_router,
@@ -5363,26 +5370,28 @@ async def _run_background_health_check():
                     str(e),
                 )
                 (
-                    healthy_endpoints,
-                    unhealthy_endpoints,
+                    checked_healthy,
+                    checked_unhealthy,
                     _exceptions_by_model_id,
                 ) = await _run_direct_health_check_with_instrumentation(
-                    _llm_model_list,
+                    checked_model_list,
                     details_bool,
                     health_check_concurrency,
                     instrumentation_context,
                 )
         else:
             (
-                healthy_endpoints,
-                unhealthy_endpoints,
+                checked_healthy,
+                checked_unhealthy,
                 _exceptions_by_model_id,
             ) = await _run_direct_health_check_with_instrumentation(
-                _llm_model_list,
+                checked_model_list,
                 details_bool,
                 health_check_concurrency,
                 instrumentation_context,
             )
+        healthy_endpoints = [endpoint for endpoint in checked_healthy if not probes.is_probe(endpoint)]
+        unhealthy_endpoints = [endpoint for endpoint in checked_unhealthy if not probes.is_probe(endpoint)]
 
         # Update the global variable with the health check results
         health_check_results["healthy_endpoints"] = healthy_endpoints
@@ -5414,10 +5423,11 @@ async def _run_background_health_check():
             prisma_client,
             shared_health_manager,
             _llm_model_list,
-            healthy_endpoints,
-            unhealthy_endpoints,
+            checked_healthy,
+            checked_unhealthy,
             pod_lock_manager=proxy_logging_obj.db_spend_update_writer.pod_lock_manager,
             lock_ttl=health_check_interval,
+            public_name_by_probe_id=probes.public_name_by_probe_id,
         )
 
         # Write health state to router cache for health-check-driven routing

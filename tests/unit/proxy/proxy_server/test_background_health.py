@@ -170,6 +170,7 @@ async def test_schedule_background_health_check_db_save_creates_task(monkeypatch
         unhealthy,
         start_time,
         checked_by,
+        public_name_by_probe_id,
     ):
         captured["prisma_client"] = prisma_client
         captured["model_list"] = model_list
@@ -740,3 +741,71 @@ async def test_run_background_health_check_probes_only_listed_model_groups(monke
         await _run_background_health_check()
 
     assert probed["ids"] == ["listed-1", "listed-2"]
+
+
+@pytest.mark.asyncio
+async def test_run_background_health_check_probes_public_wildcard_models_and_keeps_them_off_health(monkeypatch):
+    import litellm
+
+    model_list = [
+        {
+            "model_name": "gpt-6.2-sol",
+            "litellm_params": {"model": "openai/gpt-6.2-sol", "api_key": "sk-test"},
+            "model_info": {"id": "sol-id"},
+        },
+        {
+            "model_name": "openai/*",
+            "litellm_params": {"model": "openai/*", "api_key": "sk-test"},
+            "model_info": {"id": "wildcard-id", "health_check_model": "openai/gpt-6-luna"},
+        },
+    ]
+    router = litellm.Router(model_list=[dict(deployment) for deployment in model_list])
+    monkeypatch.setattr(litellm, "public_model_groups", ["gpt-6.2-sol", "openai/gpt-6.1-terra"])
+    monkeypatch.setattr(proxy_server, "health_check_interval", 60)
+    monkeypatch.setattr(proxy_server, "health_check_concurrency", 1)
+    monkeypatch.setattr(proxy_server, "health_check_details", True)
+    monkeypatch.setattr(proxy_server, "use_shared_health_check", False)
+    monkeypatch.setattr(proxy_server, "redis_usage_cache", None)
+    monkeypatch.setattr(proxy_server, "prisma_client", None)
+    monkeypatch.setattr(proxy_server, "background_health_check_loop_active", False)
+    monkeypatch.setattr(proxy_server, "llm_router", router)
+    monkeypatch.setattr(proxy_server, "llm_model_list", model_list)
+    monkeypatch.setattr(proxy_server, "health_check_results", {"healthy_endpoints": [], "unhealthy_endpoints": []})
+    monkeypatch.setattr(proxy_server, "health_check_filter_kwargs_from_general_settings", lambda _gs: {})
+    monkeypatch.setattr(proxy_server, "_write_health_state_to_router_cache", lambda *a, **kw: None)
+
+    async def _fake_direct(model_list, *_a, **_kw):
+        return (
+            [{"model": m["litellm_params"]["model"], "model_id": m["model_info"]["id"]} for m in model_list],
+            [],
+            {},
+        )
+
+    monkeypatch.setattr(proxy_server, "_run_direct_health_check_with_instrumentation", _fake_direct)
+    saves = []
+    monkeypatch.setattr(
+        proxy_server,
+        "_schedule_background_health_check_db_save",
+        lambda *a, **kw: saves.append((a[3], kw["public_name_by_probe_id"])),
+    )
+
+    async def _stop_sleep(_seconds):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(proxy_server.asyncio, "sleep", _stop_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _run_background_health_check()
+
+    [(saved_healthy, public_name_by_probe_id)] = saves
+    assert (
+        sorted(e["model_id"] for e in proxy_server.health_check_results["healthy_endpoints"]),
+        sorted(
+            (e["model"], public_name_by_probe_id.get(e["model_id"]))
+            for e in saved_healthy
+            if e["model_id"] in public_name_by_probe_id
+        ),
+    ) == (
+        ["sol-id", "wildcard-id"],
+        [("openai/gpt-6.1-terra", "openai/gpt-6.1-terra")],
+    )
