@@ -178,7 +178,7 @@ describe("CreateCustomerHierarchyDialog", () => {
       />,
     );
     await user.click(screen.getByRole("combobox", { name: "Member limits" }));
-    await user.click(screen.getByRole("option", { name: "Enter custom limits instead" }));
+    await user.click(await screen.findByRole("option", { name: "Enter custom limits instead" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), { target: { value: "Jamie" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "25" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "20000" } });
@@ -214,7 +214,7 @@ describe("CreateCustomerHierarchyDialog", () => {
       />,
     );
     await user.click(screen.getByRole("combobox", { name: "Member limits" }));
-    await user.click(screen.getByRole("option", { name: "Enter custom limits instead" }));
+    await user.click(await screen.findByRole("option", { name: "Enter custom limits instead" }));
     fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "25" } });
     await user.click(screen.getByRole("combobox", { name: "Member limits" }));
     await user.click(await screen.findByRole("option", { name: /Power/ }));
