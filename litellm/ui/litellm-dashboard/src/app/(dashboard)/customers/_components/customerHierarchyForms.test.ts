@@ -256,6 +256,35 @@ describe("customer hierarchy settings payloads", () => {
       patch: { kind: "member", body: { alias: "Renamed" } },
     });
   });
+
+  it("clears visible legacy limits while preserving hidden policy during permanent conversion", () => {
+    const yearly = { budget_duration: "12mo", max_budget: 5000, reset_at: "2027-01-01T00:00:00Z" };
+    const entity: CustomerHierarchyEntity = {
+      kind: "member",
+      record: {
+        ...member,
+        budget: { ...memberBase, model_tpm_limit: { "test-model": 1000 }, cap_policy: "soft" },
+        budget_override: { max_budget: 750, budget_limits: [yearly] },
+        budget_override_expires_at: null,
+      },
+    };
+    const fields = customerHierarchyFields(entity);
+    expect(buildCustomerHierarchyPatch(entity, { ...fields, maxBudget: "", rpm: "" })).toMatchObject({
+      patch: {
+        body: {
+          budget: {
+            max_budget: null,
+            rpm_limit: null,
+            tpm_limit: memberBase.tpm_limit,
+            budget_limits: [yearly],
+            model_tpm_limit: { "test-model": 1000 },
+            cap_policy: "soft",
+          },
+          budget_override: null,
+        },
+      },
+    });
+  });
 });
 
 it("rejects mixing a new preset with custom limits, including zero", () => {

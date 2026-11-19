@@ -393,17 +393,18 @@ class AppStore:
         )
         return entity.model_copy(update={"budget_usage": usage})
 
-    async def valid_profile(self, budget_id: str | None) -> bool:
-        if budget_id is None:
-            return True
-        return (
-            budget_id
-            in (
+    async def shared_profile_ids(self) -> frozenset[str]:
+        return frozenset(
+            (
                 *await budget_group_ids(self.customers.config, BudgetGroupScope.APP_ORGANIZATION),
                 *await organization_budget_group_ids(self.customers.config),
             )
-            and await self.budget(budget_id) is not None
         )
+
+    async def valid_profile(self, budget_id: str | None) -> bool:
+        if budget_id is None:
+            return True
+        return budget_id in await self.shared_profile_ids() and await self.budget(budget_id) is not None
 
     async def get(self, app_id: str) -> App | AppFailure:
         row: Final = await self.apps.find_unique(where={"app_id": app_id})
@@ -580,7 +581,7 @@ class AppStore:
     async def organization_response(self, app: App, row: PrismaRecord) -> AppOrganization:
         org: Final = AppOrganization.model_validate(row.model_dump())
         base_id: Final = org.budget_id or org.tier_budget_id or app.default_tier_budget_id
-        shared: Final = await organization_budget_group_ids(self.config)
+        shared: Final = await self.shared_profile_ids()
         base: Final = await self.association_budget_state(base_id)
         override: Final = await self.association_budget_state(org.budget_override_id)
         return org.model_copy(
@@ -613,7 +614,7 @@ class AppStore:
     async def association_budget(
         self, current_id: str | None, inherited_id: str | None, patch: Budget | None, actor: str
     ) -> str | None:
-        shared: Final = frozenset(await organization_budget_group_ids(self.config)) | (
+        shared: Final = await self.shared_profile_ids() | (
             frozenset((inherited_id,)) if inherited_id is not None else frozenset[str]()
         )
         return await self.customers.private_budget_patch(
