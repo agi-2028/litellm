@@ -16,10 +16,11 @@ import { CustomerBudgetLimitCell } from "./CustomerBudgetColumn";
 export function CustomerSpendIdentity({
   entity: member,
   onClick,
+  href,
 }: {
   entity: CustomerUsageEntity;
-  onClick: () => void;
-}) {
+} & ({ href: string; onClick?: never } | { href?: never; onClick: () => void })) {
+  const Name = href ? "a" : "button";
   return (
     <div className="flex items-center gap-3">
       <span
@@ -34,14 +35,15 @@ export function CustomerSpendIdentity({
           .toLocaleUpperCase()}
       </span>
       <div className="min-w-0">
-        <button
-          type="button"
+        <Name
+          type={href ? undefined : "button"}
+          href={href}
           title={member.label}
           className="block max-w-52 truncate text-left font-medium hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
           onClick={onClick}
         >
           {member.label}
-        </button>
+        </Name>
         {member.label !== member.id && (
           <span className="block max-w-52 truncate font-mono text-[11px] text-muted-foreground" title={member.id}>
             {member.id}

@@ -114,7 +114,6 @@ function hierarchyRows({ hierarchy, selected, scope }: ScopeProps) {
       id: team.customer_team_id,
       label: team.alias || team.customer_team_id,
       entity: customerUsageEntity(team.customer_team_id, team),
-      open: () => hierarchy.openTeam(team.customer_team_id),
       edit: () => hierarchy.openTeam(team.customer_team_id, true),
       member: null,
       parentTeamId: null,
@@ -126,7 +125,6 @@ function hierarchyRows({ hierarchy, selected, scope }: ScopeProps) {
       id: member.customer_member_id,
       label: member.alias || member.customer_member_id,
       entity: customerUsageEntity(member.customer_member_id, member),
-      open: () => hierarchy.openMember(member.customer_member_id, member.parent_team_ids[0] ?? ""),
       edit: () => hierarchy.openMember(member.customer_member_id, member.parent_team_ids[0] ?? ""),
       member,
       parentTeamId: member.parent_team_ids[0] ?? "",
@@ -166,6 +164,7 @@ function HierarchyCreateAction({ hierarchy, selected, scope }: ScopeProps) {
 
 function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: boolean }) {
   const { customerHierarchyHref } = useCustomerHierarchyLinks();
+  const router = useRouter();
   const [movingMember, setMovingMember] = useState<Member | null>(null);
   const { t } = useTranslation();
   const { hierarchy, childLabel, showTeam } = props;
@@ -216,9 +215,21 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              className="cursor-pointer"
+              onClick={(event) => {
+                if (
+                  !(event.target instanceof Element) ||
+                  !event.currentTarget.contains(event.target) ||
+                  event.target.closest("a, button")
+                )
+                  return;
+                router.push(customerHierarchyHref("usage", row.usageScope));
+              }}
+            >
               <TableCell className="py-4 pl-0">
-                <CustomerSpendIdentity entity={row.entity} onClick={row.open} />
+                <CustomerSpendIdentity entity={row.entity} href={customerHierarchyHref("usage", row.usageScope)} />
               </TableCell>
               {showTeam && (
                 <TableCell>
@@ -255,12 +266,6 @@ function HierarchyChildRows(props: ScopeProps & { childLabel: string; showTeam: 
               )}
               <TableCell className="pr-0 text-right">
                 <div className="flex justify-end gap-2">
-                  <a
-                    href={customerHierarchyHref("usage", row.usageScope)}
-                    className="inline-flex h-8 items-center px-2 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {t("customerPortal.hierarchy.viewUsage")}
-                  </a>
                   {row.member ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger
