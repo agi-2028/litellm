@@ -13,19 +13,37 @@ import {
 } from "./customerBudgetUsage";
 import { CustomerBudgetLimitCell } from "./CustomerBudgetColumn";
 
+export function CustomerSpendTier({ entity }: { entity: CustomerUsageEntity }) {
+  const { t } = useTranslation();
+  const custom = customerBudgetUsage(entity).length > 0 || entity.rateLimits;
+  const label = entity.budgetGroup ?? (custom ? t("customerPortal.organizationGroups.customBadge") : "—");
+  return (
+    <TableCell className="px-4 text-muted-foreground">
+      <span className="block max-w-48 truncate" title={label}>
+        {label}
+      </span>
+    </TableCell>
+  );
+}
+
 export function CustomerSpendIdentity({
   entity: member,
   onClick,
   href,
+  usageLayout = false,
 }: {
   entity: CustomerUsageEntity;
+  usageLayout?: boolean;
 } & ({ href: string; onClick?: never } | { href?: never; onClick: () => void })) {
   const Name = href ? "a" : "button";
   return (
     <div className="flex items-center gap-3">
       <span
         aria-hidden="true"
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium",
+          usageLayout && "size-9",
+        )}
       >
         {member.label
           .split(/\s+/)
@@ -54,18 +72,28 @@ export function CustomerSpendIdentity({
   );
 }
 
-export function CustomerSpendHeaders({ children }: { children: ReactNode }) {
+export function CustomerSpendHeaders({
+  children,
+  usageLayout = false,
+}: {
+  children: ReactNode;
+  usageLayout?: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <>
-      <TableHead className="min-w-56">{t("customerPortal.analytics.monthlySpend")}</TableHead>
+      <TableHead className={cn("min-w-56", usageLayout && "w-[30%] min-w-80 px-4")}>
+        {t(usageLayout ? "customerPortal.list.columns.monthlySpend" : "customerPortal.analytics.monthlySpend")}
+      </TableHead>
       {children}
-      <TableHead className="text-right">{t("customerPortal.analytics.yearlySpend")}</TableHead>
-      <TableHead className="min-w-36 whitespace-normal text-right">
+      <TableHead className={cn("text-right", usageLayout && "px-4")}>
+        {t("customerPortal.analytics.yearlySpend")}
+      </TableHead>
+      <TableHead className={cn("min-w-36 whitespace-normal text-right", usageLayout && "px-4 text-left")}>
         {t("customerPortal.analytics.customerSpendShare")}
       </TableHead>
-      <TableHead className="text-right">{t("customerPortal.analytics.tokens")}</TableHead>
-      <TableHead className="text-right">{t("customerPortal.analytics.status")}</TableHead>
+      <TableHead className={cn("text-right", usageLayout && "px-4")}>{t("customerPortal.analytics.tokens")}</TableHead>
+      <TableHead className={cn("text-right", usageLayout && "px-4")}>{t("customerPortal.analytics.status")}</TableHead>
     </>
   );
 }
@@ -76,12 +104,16 @@ export function CustomerSpendCells({
   yearlySpend,
   tokens,
   organizationSpend,
+  usageLayout = false,
+  tokenContent,
 }: {
   entity: CustomerUsageEntity;
-  monthlySpend: number;
-  yearlySpend: number;
-  tokens: number;
-  organizationSpend: number;
+  monthlySpend: number | null;
+  yearlySpend: number | null;
+  tokens: number | null;
+  organizationSpend: number | null;
+  usageLayout?: boolean;
+  tokenContent?: ReactNode;
 }) {
   const { t } = useTranslation();
   const budgets = customerBudgetUsage(member);
@@ -89,19 +121,12 @@ export function CustomerSpendCells({
   const yearlyBudgets = budgets.filter((budget) => customerBudgetPeriod(budget.budget_duration) === "yearly");
   const otherBudgets = budgets.filter((budget) => customerBudgetPeriod(budget.budget_duration) === "other");
 
-  const spendShare = organizationSpend > 0 ? (monthlySpend / organizationSpend) * 100 : 0;
-  const sharePercentage = Math.max(0, Math.min(100, spendShare));
-  const shareLabel = t("format.number", {
-    val: spendShare / 100,
-    style: "percent",
-    maximumFractionDigits: 1,
-  });
   const status = customerBudgetStatus(budgets);
   const atLimit = status === "customerPortal.analytics.reachedLimit";
 
   return (
     <>
-      <TableCell className="pr-4">
+      <TableCell className={cn("pr-4", usageLayout && "px-4")}>
         <div className="space-y-3">
           {monthlyBudgets.map((budget) => (
             <CustomerBudgetWindow key={budget.source} budget={budget} showReset={monthlyBudgets.length > 1} />
@@ -121,7 +146,7 @@ export function CustomerSpendCells({
         </div>
       </TableCell>
       <CustomerBudgetLimitCell limit={customerBudgetLimit(member)} rateLimits={member.rateLimits} />
-      <TableCell className="text-right tabular-nums">
+      <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>
         <div className="space-y-2">
           {yearlyBudgets.map((budget) => (
             <CustomerBudgetWindow key={budget.source} budget={budget} showReset={yearlyBudgets.length > 1} />
@@ -131,28 +156,15 @@ export function CustomerSpendCells({
           )}
         </div>
       </TableCell>
-      <TableCell>
-        <div
-          role="meter"
-          aria-label={t("customerPortal.analytics.customerSpendShare")}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={sharePercentage}
-          aria-valuetext={shareLabel}
-          title={shareLabel}
-          className="ml-auto h-2.5 w-24 overflow-hidden rounded-full bg-muted"
-        >
-          <div
-            className="h-full rounded-full bg-primary"
-            style={{ width: `${sharePercentage}%`, opacity: 0.3 + sharePercentage * 0.007 }}
-          />
-        </div>
+      <CustomerSpendShare monthlySpend={monthlySpend} organizationSpend={organizationSpend} usageLayout={usageLayout} />
+      <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>
+        {tokenContent ?? (tokens === null ? "—" : formatCompact(tokens))}
       </TableCell>
-      <TableCell className="text-right tabular-nums">{formatCompact(tokens)}</TableCell>
-      <TableCell className="text-right">
+      <TableCell className={cn("text-right", usageLayout && "px-4")}>
         <span
           className={cn(
             "inline-flex rounded-full bg-muted px-2 py-0.5 text-xs",
+            usageLayout && "whitespace-nowrap",
             atLimit && "bg-destructive/10 text-destructive",
           )}
         >
@@ -160,5 +172,54 @@ export function CustomerSpendCells({
         </span>
       </TableCell>
     </>
+  );
+}
+
+function CustomerSpendShare({
+  monthlySpend,
+  organizationSpend,
+  usageLayout,
+}: {
+  monthlySpend: number | null;
+  organizationSpend: number | null;
+  usageLayout: boolean;
+}) {
+  const { t } = useTranslation();
+  const spendShare = organizationSpend && monthlySpend !== null ? (monthlySpend / organizationSpend) * 100 : 0;
+  const shareAvailable = organizationSpend !== null && monthlySpend !== null;
+  const sharePercentage = Math.max(0, Math.min(100, spendShare));
+  const shareLabel = t("format.number", {
+    val: spendShare / 100,
+    style: "percent",
+    maximumFractionDigits: 1,
+  });
+  return (
+    <TableCell className={usageLayout ? "px-4" : undefined}>
+      {shareAvailable ? (
+        <div className={usageLayout ? "flex items-center gap-3" : undefined}>
+          <div
+            role="meter"
+            aria-label={t("customerPortal.analytics.customerSpendShare")}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={sharePercentage}
+            aria-valuetext={shareLabel}
+            title={shareLabel}
+            className={cn(
+              "ml-auto h-2.5 w-24 overflow-hidden rounded-full bg-muted",
+              usageLayout && "ml-0 h-2 w-14 shrink-0",
+            )}
+          >
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${sharePercentage}%`, opacity: usageLayout ? 0.6 : 0.3 + sharePercentage * 0.007 }}
+            />
+          </div>
+          {usageLayout && <span className="text-xs tabular-nums text-muted-foreground">{shareLabel}</span>}
+        </div>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )}
+    </TableCell>
   );
 }

@@ -38,6 +38,62 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer member apps", () => {
+  it("shows scoped member app usage and opens it from the app name", async () => {
+    const onAppSelect = vi.fn();
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.pathname.endsWith("/apps")) return json([app]);
+      if (url.pathname.endsWith("/daily/activity")) {
+        expect(url.searchParams.get("app_id")).toBe(app.app_id);
+        expect(url.searchParams.get("customer_member_ids")).toBe("member-1");
+        const metrics = {
+          spend: 2.5,
+          total_tokens: 1500,
+          prompt_tokens: 1000,
+          completion_tokens: 500,
+          api_requests: 3,
+        };
+        return json({
+          results: [
+            { date: url.searchParams.get("start_date"), metrics, breakdown: { entities: { "member-1": { metrics } } } },
+          ],
+          metadata: { has_more: false, total_pages: 1 },
+        });
+      }
+      const memberBudget = {
+        app_id: app.app_id,
+        customer_member_id: "member-1",
+        spend: 99,
+        budget_source: "customer_default",
+        effective_budget: { max_budget: 10, budget_duration: "1mo", tpm_limit: 1000, rpm_limit: 20 },
+        budget_usage: [{ source: "scalar", max_budget: 10, spend: 2, budget_duration: "1mo", reset_at: null }],
+      };
+      return json(memberBudget);
+    });
+    const user = userEvent.setup();
+    render(
+      <CustomerMemberApps
+        memberId="member-1"
+        onAppSelect={onAppSelect}
+        usageContext={{
+          scope: { org: "org-1", team: null, member: "member-1" },
+          startDate: "2026-11-01",
+          endDate: "2026-11-18",
+          organizationSpend: 10,
+        }}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "1,500 total tokens. View breakdown" })).toHaveTextContent("1.5K");
+    expect(screen.getByText("$2.00 / $10.00")).toBeInTheDocument();
+    expect(screen.getByText("20% used")).toBeInTheDocument();
+    expect(screen.getByText("$8.00 left")).toBeInTheDocument();
+    expect(screen.getByText("1,000 TPM")).toBeInTheDocument();
+    expect(screen.getByText("20 RPM")).toBeInTheDocument();
+    expect(screen.getByText("25%")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Assistant", exact: true }));
+    expect(onAppSelect).toHaveBeenCalledExactlyOnceWith(app.app_id);
+  });
+
   it("should show a compact member budget row and save an app-specific override", async () => {
     const requests: Request[] = [];
     fetchMock.mockImplementation(async (input) => {

@@ -34,6 +34,8 @@ import AppBudgetLimits from "./AppBudgetLimits";
 import { appBudgetWindows } from "./appBudgetPresentation";
 import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
 import { useAppBudgetGroups } from "./useAppBudgetGroups";
+import AppUsageSpendCells, { type AppUsageContext } from "./AppUsageSpendCells";
+import { CustomerSpendHeaders } from "../../customers/_components/CustomerSpendCells";
 
 const organizationAppKey = (appId: string | null, organizationId: string) =>
   ["app-organization", appId, organizationId] as const;
@@ -53,10 +55,12 @@ export default function CustomerOrganizationApps({
   organizationId,
   organizationAlias,
   onAppSelect,
+  usageContext,
 }: {
   organizationId: string;
   organizationAlias?: string | null;
   onAppSelect?: (appId: string) => void;
+  usageContext?: AppUsageContext;
 }) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
@@ -97,6 +101,7 @@ export default function CustomerOrganizationApps({
           rows={rows}
           groups={groups.data?.default_budgets ?? []}
           onAppSelect={onAppSelect}
+          usageContext={usageContext}
           onEdit={(resource) => {
             setAdding(false);
             setEditing(resource);
@@ -247,21 +252,29 @@ function OrganizationAppsTable({
   groups,
   onEdit,
   onAppSelect,
+  usageContext,
 }: {
   rows: { app: App; row: AppOrganization }[];
   groups: { budget_id: string; name: string }[];
   onEdit: (resource: AppResource) => void;
   onAppSelect?: (appId: string) => void;
+  usageContext?: AppUsageContext;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="overflow-x-auto">
+    <div className={usageContext ? "overflow-hidden rounded-lg border" : "overflow-x-auto"}>
       <Table className="w-full text-sm" aria-label={t("apps.organizationTitle")}>
         <TableHeader>
-          <TableRow className="border-b text-left text-xs text-muted-foreground">
+          <TableRow className={usageContext ? undefined : "border-b text-left text-xs text-muted-foreground"}>
             <TableHead className="px-4 py-3 font-medium">{t("apps.alias")}</TableHead>
             <TableHead className="px-4 py-3 font-medium">{t("apps.profile")}</TableHead>
-            <TableHead className="px-4 py-3 font-medium">{t("apps.effectiveBudget")}</TableHead>
+            {usageContext ? (
+              <CustomerSpendHeaders usageLayout>
+                <TableHead className="px-4">{t("customerPortal.hierarchy.maxBudget")}</TableHead>
+              </CustomerSpendHeaders>
+            ) : (
+              <TableHead className="px-4 py-3 font-medium">{t("apps.effectiveBudget")}</TableHead>
+            )}
             <TableHead className="px-4 py-3 text-right font-medium">{t("apps.actions")}</TableHead>
           </TableRow>
         </TableHeader>
@@ -286,7 +299,17 @@ function OrganizationAppsTable({
             return (
               <TableRow key={app.app_id} className="border-b">
                 <TableCell className="px-4 py-3">
-                  <span className="block font-medium">{app.alias}</span>
+                  {onAppSelect ? (
+                    <button
+                      type="button"
+                      onClick={() => onAppSelect(app.app_id)}
+                      className="block text-left font-medium hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      {app.alias}
+                    </button>
+                  ) : (
+                    <span className="block font-medium">{app.alias}</span>
+                  )}
                   <span className="mt-1 block text-xs text-muted-foreground">{periodLabel}</span>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-muted-foreground">
@@ -294,21 +317,18 @@ function OrganizationAppsTable({
                     {sourceLabel}
                   </span>
                 </TableCell>
-                <TableCell className="px-4 py-3">
-                  <AppBudgetLimits budget={row.effective_budget} usage={row.budget_usage} cumulativeSpend={row.spend} />
-                </TableCell>
+                {usageContext ? (
+                  <AppUsageSpendCells appId={app.app_id} alias={app.alias} row={row} context={usageContext} />
+                ) : (
+                  <TableCell className="px-4 py-3">
+                    <AppBudgetLimits
+                      budget={row.effective_budget}
+                      usage={row.budget_usage}
+                      cumulativeSpend={row.spend}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="px-4 py-3 text-right">
-                  {onAppSelect && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onAppSelect(app.app_id)}
-                      aria-label={t("apps.viewUsageFor", { alias: app.alias })}
-                    >
-                      {t("apps.viewUsage")}
-                    </Button>
-                  )}
                   <Button
                     type="button"
                     variant="ghost"

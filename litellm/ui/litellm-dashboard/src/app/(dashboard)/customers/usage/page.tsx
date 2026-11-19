@@ -16,6 +16,7 @@ import useCustomerHierarchyUsage from "../_components/useCustomerHierarchyUsage"
 import CustomerOrganizationApps from "../../apps/_components/CustomerOrganizationApps";
 import CustomerMemberApps from "../../apps/_components/CustomerMemberApps";
 import CustomerUsageAppFilter from "../_components/CustomerUsageAppFilter";
+import { calendarDate } from "../_components/customerUsageRange";
 
 const METRIC_LABELS = {
   spend: "customerPortal.analytics.spend",
@@ -53,6 +54,7 @@ export default function CustomerHierarchyUsagePage() {
     setSearch,
     setPage,
     setApp,
+    appOrganizationSpend,
   } = useCustomerHierarchyUsage();
   const metricLabel = t(METRIC_LABELS[rankingMetric]);
   const budgetEntity = data?.member ?? data?.team ?? data?.organization;
@@ -70,6 +72,12 @@ export default function CustomerHierarchyUsagePage() {
 
   const budgetSettingsHref = `${customerHierarchyHref("manage", scope)}&tab=settings`;
   const isOrganizationScope = !scope.team && !scope.member;
+  const appUsageContext = {
+    scope,
+    startDate: calendarDate(dateValue.from),
+    endDate: calendarDate(dateValue.to),
+    organizationSpend: appOrganizationSpend,
+  };
 
   return (
     <main
@@ -119,9 +127,17 @@ export default function CustomerHierarchyUsagePage() {
               organizationId={scope.org}
               organizationAlias={data?.organization.label}
               onAppSelect={setApp}
+              usageContext={appUsageContext}
             />
           )}
-          {scope.member && <CustomerMemberApps key={scope.member} memberId={scope.member} />}
+          {scope.member && (
+            <CustomerMemberApps
+              key={scope.member}
+              memberId={scope.member}
+              usageContext={appUsageContext}
+              onAppSelect={setApp}
+            />
+          )}
           <CustomerUsageTrend
             data={data}
             dimension={params.breakdown}
