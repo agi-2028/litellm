@@ -2,10 +2,12 @@ import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
+import CustomerBudgetPeriodSelect from "./CustomerBudgetPeriodSelect";
+import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { customerBudgetPeriod } from "./customerBudgetUsage";
-import type { Organization } from "./customerHierarchyForms";
+import type { BudgetFields, Organization } from "./customerHierarchyForms";
 import type { CustomerOrganizationFields } from "./customerOrganizationForm";
 
 export type CustomerLimits = Pick<
@@ -82,7 +84,16 @@ export function CustomerBudgetSourceSelect({
     summary: t("customerPortal.createDialog.customLimitsHelp"),
   };
   const selectedOption = value === "custom" ? customOption : profileOptions.find((option) => option.value === value);
-  const selection = value === "inherit" ? inheritedOption : selectedOption;
+  const selection =
+    value === "inherit"
+      ? inheritedOption
+      : selectedOption ??
+        (value.startsWith("profile:")
+          ? {
+              label: t("customerPortal.hierarchy.unknownTemplate", { id: value.slice("profile:".length) }),
+              summary: "",
+            }
+          : undefined);
   return (
     <Select value={value} disabled={disabled} onValueChange={onChange}>
       <SelectTrigger aria-label={title} className="w-full gap-4 px-3 py-3 data-[size=default]:h-auto">
@@ -200,6 +211,80 @@ export function CustomerCustomLimitFields({
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+export function CustomerCustomBudgetFields({
+  fields,
+  onChange,
+  idPrefix,
+  inheritBlank = false,
+  children,
+}: {
+  fields: BudgetFields;
+  onChange: {
+    (key: Exclude<keyof BudgetFields, "allowedModels">, value: string): void;
+    (key: "allowedModels", value: readonly string[]): void;
+  };
+  idPrefix: string;
+  inheritBlank?: boolean;
+  children?: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const changeLimits = (patch: Partial<CustomerLimitValues>) => {
+    if (patch.budgetAmount !== undefined) onChange("maxBudget", patch.budgetAmount);
+    if (patch.tpm !== undefined) onChange("tpm", patch.tpm);
+    if (patch.rpm !== undefined) onChange("rpm", patch.rpm);
+  };
+  return (
+    <div className="space-y-5">
+      <CustomerCustomLimitFields
+        fields={{
+          budgetAmount: fields.maxBudget,
+          budgetDuration: fields.budgetDuration === "12mo" ? "12mo" : "1mo",
+          tpm: fields.tpm,
+          rpm: fields.rpm,
+        }}
+        idPrefix={idPrefix}
+        disabled={false}
+        inheritBlank={inheritBlank}
+        periodControl={
+          <CustomerBudgetPeriodSelect
+            value={fields.budgetDuration}
+            onChange={(value) => onChange("budgetDuration", value)}
+          />
+        }
+        onChange={changeLimits}
+      />
+      <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-soft-budget`} className="font-normal text-muted-foreground">
+            {t("customerPortal.hierarchy.softBudget")}
+          </Label>
+          <CustomerBudgetAmountInput
+            id={`${idPrefix}-soft-budget`}
+            label={t("customerPortal.hierarchy.softBudget")}
+            placeholder={t(
+              inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
+            )}
+            value={fields.softBudget}
+            onChange={(value) => onChange("softBudget", value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-models`} className="font-normal text-muted-foreground">
+            {t("customerPortal.hierarchy.allowedModels")}
+          </Label>
+          <CustomerAllowedModelsSelect
+            id={`${idPrefix}-models`}
+            value={fields.allowedModels}
+            onChange={(value) => onChange("allowedModels", value)}
+          />
+          <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.allowedModelsHint")}</p>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

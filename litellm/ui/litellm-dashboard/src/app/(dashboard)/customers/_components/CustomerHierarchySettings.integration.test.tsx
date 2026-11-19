@@ -277,7 +277,7 @@ describe("CustomerHierarchySettings", () => {
     fetchMock.mockResolvedValue(json(member));
     render(
       <CustomerHierarchySettings
-        entity={{ kind: "member", record: member }}
+        entity={{ kind: "member", record: { ...member, budget_override: null } }}
         organization={organization}
         onSaved={onSaved}
         onDeleted={onDeleted}
@@ -286,7 +286,7 @@ describe("CustomerHierarchySettings", () => {
     const template = screen.getByRole("combobox", { name: "Budget template" });
     expect(template).toHaveTextContent("Standard (default)");
     expect(template).not.toHaveTextContent("template-1");
-    await chooseSelectOption(user, template, "Pro");
+    await chooseSelectOption(user, template, /^Pro/);
     expect(template).toHaveTextContent("Pro");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
@@ -294,27 +294,68 @@ describe("CustomerHierarchySettings", () => {
     expect(await lastRequest().clone().json()).toEqual({ budget_id: "template-2" });
   });
 
-  it("should clear the template without changing the existing override", async () => {
+  it("shows custom fields and saves spend, reset period, and rate limits together", async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(json({ ...member, budget_id: null }));
+    fetchMock.mockResolvedValue(json(member));
     render(
       <CustomerHierarchySettings
-        entity={{ kind: "member", record: member }}
+        entity={{ kind: "member", record: { ...member, budget_override: null, budget_override_expires_at: null } }}
         organization={organization}
         onSaved={onSaved}
         onDeleted={onDeleted}
       />,
     );
-    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), "No template");
+    expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Budget template" }),
+      "Enter custom limits instead",
+    );
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Spend limit (USD)" }), { target: { value: "75" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "50000" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Requests per minute" }), { target: { value: "60" } });
+    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Reset period" }), "/ month");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(await lastRequest().clone().json()).toEqual({ budget_id: null });
+    expect(await lastRequest().clone().json()).toEqual({
+      budget_override: {
+        max_budget: 75,
+        soft_budget: null,
+        budget_duration: "1mo",
+        tpm_limit: 50000,
+        rpm_limit: 60,
+        allowed_models: null,
+      },
+    });
+  });
+
+  it("restores the original preset and hides unsaved custom limits on reset", async () => {
+    const user = userEvent.setup();
+    render(
+      <CustomerHierarchySettings
+        entity={{ kind: "member", record: { ...member, budget_override: null } }}
+        organization={organization}
+        onSaved={onSaved}
+        onDeleted={onDeleted}
+      />,
+    );
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Budget template" }),
+      "Enter custom limits instead",
+    );
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Tokens per minute" }), { target: { value: "900" } });
+    await user.click(screen.getByRole("button", { name: "Reset changes" }));
+    expect(screen.getByRole("combobox", { name: "Budget template" })).toHaveTextContent("Standard (default)");
+    expect(screen.queryByRole("spinbutton", { name: "Tokens per minute" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("should identify an unavailable stored template instead of displaying No template", () => {
     render(
       <CustomerHierarchySettings
-        entity={{ kind: "member", record: { ...member, budget_id: "retired-template" } }}
+        entity={{ kind: "member", record: { ...member, budget_id: "retired-template", budget_override: null } }}
         organization={organization}
         onSaved={onSaved}
         onDeleted={onDeleted}
@@ -336,7 +377,8 @@ describe("CustomerHierarchySettings", () => {
         onDeleted={onDeleted}
       />,
     );
-    await user.click(screen.getByRole("checkbox", { name: "Override the template budget" }));
+    await chooseSelectOption(user, screen.getByRole("combobox", { name: "Budget template" }), /^Standard/);
+    expect(screen.queryByRole("spinbutton", { name: "Spend limit (USD)" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(new URL(lastRequest().url).pathname).toBe("/management/v1/customer_members/member-1");
@@ -374,7 +416,11 @@ describe("CustomerHierarchySettings", () => {
         onDeleted={onDeleted}
       />,
     );
-    await user.click(screen.getByRole("checkbox", { name: "Override the template budget" }));
+    await chooseSelectOption(
+      user,
+      screen.getByRole("combobox", { name: "Budget template" }),
+      "Enter custom limits instead",
+    );
     expect(screen.getByRole("spinbutton", { name: "Spend limit (USD)" })).toHaveValue(null);
     expect(screen.getByRole("spinbutton", { name: "Requests per minute" })).toHaveValue(null);
     act(() =>

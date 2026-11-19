@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   type BudgetFields,
   type CustomerHierarchyFields,
@@ -14,7 +13,8 @@ import {
 } from "./customerHierarchyForms";
 import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
 import CustomerOrganizationBudgetFields from "./CustomerOrganizationBudgetFields";
-import { CustomerRateLimitFields, CustomerRateLimitSummary } from "./CustomerRateLimits";
+import { CustomerRateLimitFields } from "./CustomerRateLimits";
+import { CustomerBudgetSourceSelect, CustomerCustomBudgetFields } from "./CustomerLimitsFields";
 
 interface Props {
   kind: CustomerHierarchyEntity["kind"];
@@ -22,7 +22,6 @@ interface Props {
   fields: CustomerHierarchyFields;
   onChange: <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) => void;
   idPrefix: string;
-  operation: "create" | "edit";
 }
 
 export default function CustomerHierarchyBudgetFields({
@@ -31,7 +30,6 @@ export default function CustomerHierarchyBudgetFields({
   fields,
   onChange: update,
   idPrefix,
-  operation,
 }: Props) {
   const { t } = useTranslation();
   if (kind === "organization") {
@@ -46,13 +44,16 @@ export default function CustomerHierarchyBudgetFields({
       </div>
     );
   }
-  const templateLabel = (templateId: string): string => {
-    if (!templateId) return t("customerPortal.hierarchy.noTemplate");
-    const template = organization.default_budgets.find((budget) => budget.budget_id === templateId);
-    if (!template) return t("customerPortal.hierarchy.unknownTemplate", { id: templateId });
-    if (templateId === organization.default_budget_template_id)
-      return t("customerPortal.hierarchy.defaultTemplate", { name: template.name });
-    return template.name;
+  const custom = fields.budgetEnabled || !fields.templateId;
+  const selectSource = (value: string | null) => {
+    if (value === "custom") return update("budgetEnabled", true);
+    if (!value?.startsWith("profile:")) return;
+    update("templateId", value.slice("profile:".length));
+    update("budgetEnabled", false);
+  };
+  const updateCustom = <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) => {
+    update("budgetEnabled", true);
+    update(key, value);
   };
   return (
     <section className="space-y-4 border-t pt-6" aria-labelledby={`${idPrefix}-budget-title`}>
@@ -65,65 +66,58 @@ export default function CustomerHierarchyBudgetFields({
         </p>
       </div>
       {kind === "member" && (
-        <div className="max-w-sm space-y-1.5">
-          <Label htmlFor={`${idPrefix}-template`}>{t("customerPortal.hierarchy.template")}</Label>
-          <Select
-            value={fields.templateId || "__none__"}
-            onValueChange={(value) => update("templateId", value === "__none__" ? "" : value ?? "")}
-          >
-            <SelectTrigger id={`${idPrefix}-template`} className="w-full">
-              <SelectValue>{templateLabel(fields.templateId)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {(operation === "edit" || !organization.default_budget_template_id) && (
-                <SelectItem value="__none__">{t("customerPortal.hierarchy.noTemplate")}</SelectItem>
-              )}
-              {organization.default_budgets.map((template) => (
-                <SelectItem key={template.budget_id} value={template.budget_id}>
-                  {templateLabel(template.budget_id)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {kind === "member" && (
-        <CustomerRateLimitSummary
-          limits={organization.default_budgets.find((group) => group.budget_id === fields.templateId)}
+        <CustomerBudgetSourceSelect
+          profiles={organization.default_budgets.map((profile) => ({
+            ...profile,
+            name:
+              profile.budget_id === organization.default_budget_template_id
+                ? t("customerPortal.hierarchy.defaultTemplate", { name: profile.name })
+                : profile.name,
+          }))}
+          value={custom ? "custom" : `profile:${fields.templateId}`}
+          title={t("customerPortal.hierarchy.template")}
+          disabled={false}
+          onChange={selectSource}
         />
       )}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${idPrefix}-budget-enabled`}
-            checked={fields.budgetEnabled}
-            onCheckedChange={(checked) => update("budgetEnabled", checked)}
-          />
-          <Label htmlFor={`${idPrefix}-budget-enabled`}>
-            {t(
-              kind === "member" ? "customerPortal.hierarchy.overrideEnabled" : "customerPortal.hierarchy.budgetEnabled",
-            )}
-          </Label>
+      {kind === "team" && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${idPrefix}-budget-enabled`}
+              checked={fields.budgetEnabled}
+              onCheckedChange={(checked) => update("budgetEnabled", checked)}
+            />
+            <Label htmlFor={`${idPrefix}-budget-enabled`}>{t("customerPortal.hierarchy.budgetEnabled")}</Label>
+          </div>
         </div>
-      </div>
-      {fields.budgetEnabled && (
-        <CustomerBudgetFields fields={fields} onChange={update} idPrefix={idPrefix}>
-          {kind === "member" && (
-            <div className="space-y-1.5">
-              <Label htmlFor={`${idPrefix}-expiry`}>{t("customerPortal.hierarchy.overrideExpiry")}</Label>
-              <Input
-                id={`${idPrefix}-expiry`}
-                type="datetime-local"
-                value={fields.overrideExpiry}
-                onChange={(event) => update("overrideExpiry", event.target.value)}
-                aria-describedby={`${idPrefix}-expiry-hint`}
-              />
-              <p id={`${idPrefix}-expiry-hint`} className="text-xs text-muted-foreground">
-                {t("customerPortal.hierarchy.overrideExpiryHint")}
-              </p>
-            </div>
-          )}
-        </CustomerBudgetFields>
+      )}
+      {kind === "member" && custom && (
+        <CustomerCustomBudgetFields
+          fields={fields}
+          onChange={updateCustom}
+          idPrefix={idPrefix}
+          inheritBlank={Boolean(fields.templateId)}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor={`${idPrefix}-expiry`} className="font-normal text-muted-foreground">
+              {t("customerPortal.hierarchy.overrideExpiry")}
+            </Label>
+            <Input
+              id={`${idPrefix}-expiry`}
+              type="datetime-local"
+              value={fields.overrideExpiry}
+              onChange={(event) => update("overrideExpiry", event.target.value)}
+              aria-describedby={`${idPrefix}-expiry-hint`}
+            />
+            <p id={`${idPrefix}-expiry-hint`} className="text-xs text-muted-foreground">
+              {t("customerPortal.hierarchy.overrideExpiryHint")}
+            </p>
+          </div>
+        </CustomerCustomBudgetFields>
+      )}
+      {kind === "team" && fields.budgetEnabled && (
+        <CustomerBudgetFields fields={fields} onChange={update} idPrefix={idPrefix} />
       )}
     </section>
   );

@@ -1,11 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { $api } from "@/lib/http/api";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { Label } from "@/components/ui/label";
-import CustomerAllowedModelsSelect from "./CustomerAllowedModelsSelect";
-import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
-import CustomerBudgetPeriodSelect from "./CustomerBudgetPeriodSelect";
-import { CustomerBudgetSourceSelect, CustomerCustomLimitFields, type CustomerLimits } from "./CustomerLimitsFields";
+import { CustomerBudgetSourceSelect, CustomerCustomBudgetFields } from "./CustomerLimitsFields";
 import {
   BUDGET_FIELDS,
   customerHierarchyFields,
@@ -53,11 +49,6 @@ export default function CustomerOrganizationBudgetFields({
     for (const key of [...BUDGET_FIELDS, "allowedModels"] as const) onChange(key, initial[key]);
     onChange("templateId", profile.budget_id);
   };
-  const changeLimits = (patch: Partial<CustomerLimits>) => {
-    if (patch.budgetAmount !== undefined) updateCustom("maxBudget", patch.budgetAmount);
-    if (patch.tpm !== undefined) updateCustom("tpm", patch.tpm);
-    if (patch.rpm !== undefined) updateCustom("rpm", patch.rpm);
-  };
   return (
     <section className="space-y-4" aria-labelledby={`${idPrefix}-limits-heading`}>
       <div className="space-y-1">
@@ -76,49 +67,18 @@ export default function CustomerOrganizationBudgetFields({
       />
       {groups.isError && <ErrorState onRetry={() => void groups.refetch()} />}
       {budgetReady && !usingGroup && (
-        <div className="space-y-5">
-          <CustomerCustomLimitFields
-            fields={{
-              budgetAmount: fields.budgetEnabled ? fields.maxBudget : "",
-              budgetDuration: fields.budgetDuration === "12mo" ? "12mo" : "1mo",
-              tpm: fields.budgetEnabled ? fields.tpm : "",
-              rpm: fields.budgetEnabled ? fields.rpm : "",
-            }}
-            idPrefix={idPrefix}
-            disabled={false}
-            periodControl={
-              <CustomerBudgetPeriodSelect
-                value={fields.budgetDuration}
-                onChange={(value) => updateCustom("budgetDuration", value)}
-              />
-            }
-            onChange={changeLimits}
-          />
-          <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-soft-budget`} className="font-normal text-muted-foreground">
-                {t("customerPortal.hierarchy.softBudget")}
-              </Label>
-              <CustomerBudgetAmountInput
-                id={`${idPrefix}-soft-budget`}
-                label={t("customerPortal.hierarchy.softBudget")}
-                value={fields.budgetEnabled ? fields.softBudget : ""}
-                onChange={(value) => updateCustom("softBudget", value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-models`} className="font-normal text-muted-foreground">
-                {t("customerPortal.hierarchy.allowedModels")}
-              </Label>
-              <CustomerAllowedModelsSelect
-                id={`${idPrefix}-models`}
-                value={fields.budgetEnabled ? fields.allowedModels : []}
-                onChange={(value) => updateCustom("allowedModels", value)}
-              />
-              <p className="text-xs text-muted-foreground">{t("customerPortal.hierarchy.allowedModelsHint")}</p>
-            </div>
-          </div>
-        </div>
+        <CustomerCustomBudgetFields
+          fields={{
+            ...fields,
+            maxBudget: fields.budgetEnabled ? fields.maxBudget : "",
+            softBudget: fields.budgetEnabled ? fields.softBudget : "",
+            tpm: fields.budgetEnabled ? fields.tpm : "",
+            rpm: fields.budgetEnabled ? fields.rpm : "",
+            allowedModels: fields.budgetEnabled ? fields.allowedModels : [],
+          }}
+          idPrefix={idPrefix}
+          onChange={updateCustom}
+        />
       )}
     </section>
   );

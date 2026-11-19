@@ -170,7 +170,6 @@ function SettingsForm({ entity, organization, onSaved, onDeleted }: Props) {
             fields={fields}
             onChange={update}
             idPrefix="customer-hierarchy"
-            operation="edit"
           />
         </fieldset>
         {error && (

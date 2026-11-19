@@ -118,8 +118,12 @@ describe("member budget dialog", () => {
     });
   });
 
-  it("adds a rate-only override without replacing the member's inherited spend period", async () => {
-    const inheritedMember = { ...member, budget_override: null, budget_override_expires_at: null };
+  it.each([null, "7d"])("preserves the existing reset period %s when saving rate-only limits", async (duration) => {
+    const inheritedMember = {
+      ...member,
+      budget_override: duration ? { budget_duration: duration } : null,
+      budget_override_expires_at: null,
+    };
     fetchMock.mockImplementation(async (input) =>
       json(
         new URL((input as Request).url).pathname.endsWith("/customer_members/member-1")
@@ -142,7 +146,7 @@ describe("member budget dialog", () => {
       budget_override: {
         max_budget: null,
         soft_budget: null,
-        budget_duration: null,
+        budget_duration: duration,
         budget_limits: null,
         tpm_limit: 2000,
         rpm_limit: null,

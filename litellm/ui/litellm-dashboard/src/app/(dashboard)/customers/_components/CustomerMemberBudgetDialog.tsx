@@ -54,7 +54,10 @@ function MemberBudgetForm({
       ...(!custom ? { budget_id: source.slice("profile:".length) } : {}),
       budget_override: budget.value && {
         ...budget.value,
-        budget_duration: budget.value.max_budget == null ? null : budget.value.budget_duration,
+        budget_duration:
+          budget.value.max_budget == null
+            ? member.budget_override?.budget_duration ?? null
+            : budget.value.budget_duration,
       },
       budget_override_expires_at: custom ? nextExpiry : null,
     };
