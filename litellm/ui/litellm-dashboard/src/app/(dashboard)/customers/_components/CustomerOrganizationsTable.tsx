@@ -3,7 +3,6 @@ import type { SortingState } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { createSerializer, parseAsString } from "nuqs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/cva.config";
 import { uiHref } from "@/utils/uiHref";
@@ -16,48 +15,12 @@ const usageHref = createSerializer({ org: parseAsString, from: parseAsString, to
 const SORT_DIRECTIONS = ["ascending", "descending"] as const;
 const COLUMNS = [
   { id: "customer", label: "customerPortal.list.columns.customer" },
+  { id: "group", label: "customerPortal.organizationGroups.groupBadge" },
   { id: "spend", label: "customerPortal.analytics.monthlySpend" },
   { id: "budget", label: "customerPortal.hierarchy.maxBudget" },
   { id: "share", label: "customerPortal.list.columns.overallSpendShare" },
   { id: "status", label: "customerPortal.list.columns.status" },
 ] as const;
-const GROUP_COLORS = [
-  { dot: "bg-amber-600", badge: "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40" },
-  { dot: "bg-emerald-600", badge: "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40" },
-  { dot: "bg-violet-500", badge: "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40" },
-  { dot: "bg-sky-500", badge: "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/40" },
-  { dot: "bg-rose-500", badge: "border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40" },
-] as const;
-
-function OrganizationBudgetBadge({
-  source,
-  color,
-}: {
-  source: ReturnType<typeof customerOrganizationBudgetSource>;
-  color?: (typeof GROUP_COLORS)[number];
-}) {
-  const { t } = useTranslation();
-  if (!source) return null;
-  if (source.kind === "custom") {
-    return (
-      <Badge variant="outline" className="border-dashed bg-background text-muted-foreground">
-        {t("customerPortal.organizationGroups.customBadge")}
-      </Badge>
-    );
-  }
-  const name = source.name ?? t("customerPortal.organizationGroups.groupBadge");
-  return (
-    <Badge
-      variant="outline"
-      className={cn("max-w-40 gap-1.5", color?.badge ?? "bg-muted/40")}
-      title={name}
-      aria-label={t("customerPortal.organizationGroups.assignedGroup", { name })}
-    >
-      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", color?.dot ?? "bg-muted-foreground")} />
-      <span className="truncate">{name}</span>
-    </Badge>
-  );
-}
 
 export default function CustomerOrganizationsTable({
   rows,
@@ -78,14 +41,18 @@ export default function CustomerOrganizationsTable({
 }) {
   const { t } = useTranslation();
   const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
-  const groupColors = new Map(
-    groups.data?.default_budgets.map((group, index) => [group.budget_id, GROUP_COLORS[index % GROUP_COLORS.length]]),
-  );
   return (
     <Table aria-label={t("customerPortal.list.title")}>
       <TableHeader>
         <TableRow>
           {COLUMNS.map(({ id, label }) => {
+            if (id === "group") {
+              return (
+                <TableHead key={id} className="px-4">
+                  {t(label)}
+                </TableHead>
+              );
+            }
             const active = sorting[0]?.id === id;
             const descending = sorting[0]?.desc ?? false;
             const SortIcon = descending ? ArrowDown : ArrowUp;
@@ -114,14 +81,14 @@ export default function CustomerOrganizationsTable({
       <TableBody>
         {loading && (
           <TableRow>
-            <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+            <TableCell colSpan={COLUMNS.length} className="py-8 text-center text-muted-foreground">
               {t("customerPortal.list.loading")}
             </TableCell>
           </TableRow>
         )}
         {!loading && rows.length === 0 && (
           <TableRow>
-            <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+            <TableCell colSpan={COLUMNS.length} className="py-8 text-center text-muted-foreground">
               {t(searching ? "customerPortal.list.noMatches" : "customerPortal.list.empty")}
             </TableCell>
           </TableRow>
@@ -131,6 +98,13 @@ export default function CustomerOrganizationsTable({
             const label = organization.alias || organization.customer_org_id;
             const percentage = Math.max(0, Math.min(100, share * 100));
             const shareLabel = t("format.number", { val: share, style: "percent", maximumFractionDigits: 1 });
+            const budgetSource = customerOrganizationBudgetSource(organization, groups.data?.default_budgets);
+            const customLabel =
+              budgetSource?.kind === "custom" ? t("customerPortal.organizationGroups.customBadge") : null;
+            const budgetGroup =
+              budgetSource?.kind === "group"
+                ? budgetSource.name ?? t("customerPortal.organizationGroups.groupBadge")
+                : customLabel;
             return (
               <TableRow key={organization.customer_org_id}>
                 <TableCell className="px-4 py-5">
@@ -175,6 +149,11 @@ export default function CustomerOrganizationsTable({
                     </div>
                   </div>
                 </TableCell>
+                <TableCell className="px-4 text-muted-foreground">
+                  <span className="block max-w-48 truncate" title={budgetGroup ?? undefined}>
+                    {budgetGroup ?? "-"}
+                  </span>
+                </TableCell>
                 <TableCell className="px-4">
                   <div className="max-w-lg space-y-3">
                     {monthlyBudgets.map((budget) => (
@@ -193,12 +172,7 @@ export default function CustomerOrganizationsTable({
                     )}
                   </div>
                 </TableCell>
-                <CustomerBudgetLimitCell limit={budgetLimit} rateLimits={organization.budget}>
-                  <OrganizationBudgetBadge
-                    source={customerOrganizationBudgetSource(organization, groups.data?.default_budgets)}
-                    color={groupColors.get(organization.budget_id ?? "")}
-                  />
-                </CustomerBudgetLimitCell>
+                <CustomerBudgetLimitCell limit={budgetLimit} rateLimits={organization.budget} />
                 <TableCell className="px-4">
                   <div className="flex items-center gap-3">
                     <div

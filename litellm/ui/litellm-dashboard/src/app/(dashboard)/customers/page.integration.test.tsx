@@ -144,7 +144,7 @@ const customerLinks = () =>
   });
 
 describe("customer organization overview", () => {
-  it("shows each organization's assigned tier or custom budget beside its limits", async () => {
+  it("shows each organization's assigned tier or custom budget in the budget group column", async () => {
     organizations = [
       {
         ...original[0],
@@ -156,11 +156,14 @@ describe("customer organization overview", () => {
       original[2],
     ];
     renderWithProviders(<CustomersPage />);
-    await screen.findByLabelText("Organization budget group Growth");
+    await screen.findByRole("cell", { name: "Growth", exact: true });
+    expect(screen.getByRole("columnheader", { name: "Budget group" })).toBeInTheDocument();
     expect(
-      within(screen.getByRole("row", { name: /Customer 00/ })).getByLabelText("Organization budget group Growth"),
-    ).toHaveTextContent("Growth");
-    expect(within(screen.getByRole("row", { name: /Customer 01/ })).getByText("Custom")).toBeInTheDocument();
+      within(screen.getByRole("row", { name: /Customer 00/ })).getByRole("cell", { name: "Growth", exact: true }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("row", { name: /Customer 01/ })).getByRole("cell", { name: "Custom", exact: true }),
+    ).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /Customer 02/ })).queryByText("Custom")).not.toBeInTheDocument();
     expect(screen.queryByText("Member default")).not.toBeInTheDocument();
   });

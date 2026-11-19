@@ -206,6 +206,7 @@ describe("customer app budgets", () => {
     render(<CustomerOrganizationApps organizationId="org-1" />);
     await screen.findByRole("button", { name: "Edit budget for chat" });
     const table = within(screen.getByRole("table", { name: "App budgets" }));
+    expect(await table.findByRole("cell", { name: "Tier 1", exact: true })).toBeInTheDocument();
     expect(table.getByText("$100.00")).toBeInTheDocument();
     expect(table.queryByText("$1,000.00")).not.toBeInTheDocument();
     expect(table.getByRole("button", { name: "Budget details" })).toBeInTheDocument();

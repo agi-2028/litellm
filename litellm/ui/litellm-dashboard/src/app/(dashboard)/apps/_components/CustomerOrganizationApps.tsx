@@ -259,9 +259,10 @@ function OrganizationAppsTable({
       <Table className="w-full text-sm" aria-label={t("apps.organizationTitle")}>
         <TableHeader>
           <TableRow className="border-b text-left text-xs text-muted-foreground">
-            <TableHead className="py-3 font-medium">{t("apps.alias")}</TableHead>
-            <TableHead className="py-3 font-medium">{t("apps.effectiveBudget")}</TableHead>
-            <TableHead className="py-3 font-medium">{t("apps.actions")}</TableHead>
+            <TableHead className="px-4 py-3 font-medium">{t("apps.alias")}</TableHead>
+            <TableHead className="px-4 py-3 font-medium">{t("apps.profile")}</TableHead>
+            <TableHead className="px-4 py-3 font-medium">{t("apps.effectiveBudget")}</TableHead>
+            <TableHead className="px-4 py-3 text-right font-medium">{t("apps.actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -269,7 +270,7 @@ function OrganizationAppsTable({
             const profileId = row.tier_budget_id ?? app.default_tier_budget_id;
             const profileName = groups.find((group) => group.budget_id === profileId)?.name;
             let sourceLabel = t("apps.appDefault");
-            if (row.budget_override_id) sourceLabel = t("apps.customBudget");
+            if (row.budget_override_id) sourceLabel = t("customerPortal.organizationGroups.customBadge");
             else if (row.tier_budget_id) sourceLabel = profileName ?? t("apps.profile");
             const { primary } = appBudgetWindows(row.effective_budget, row.budget_usage);
             const period = customerBudgetPeriod(primary?.budget_duration ?? null);
@@ -284,16 +285,19 @@ function OrganizationAppsTable({
             };
             return (
               <TableRow key={app.app_id} className="border-b">
-                <TableCell className="py-3">
+                <TableCell className="px-4 py-3">
                   <span className="block font-medium">{app.alias}</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {[sourceLabel, periodLabel].filter(Boolean).join(" · ")}
+                  <span className="mt-1 block text-xs text-muted-foreground">{periodLabel}</span>
+                </TableCell>
+                <TableCell className="px-4 py-3 text-muted-foreground">
+                  <span className="block max-w-48 truncate" title={sourceLabel}>
+                    {sourceLabel}
                   </span>
                 </TableCell>
-                <TableCell className="py-3">
+                <TableCell className="px-4 py-3">
                   <AppBudgetLimits budget={row.effective_budget} usage={row.budget_usage} cumulativeSpend={row.spend} />
                 </TableCell>
-                <TableCell className="py-3 text-right">
+                <TableCell className="px-4 py-3 text-right">
                   {onAppSelect && (
                     <Button
                       type="button"
