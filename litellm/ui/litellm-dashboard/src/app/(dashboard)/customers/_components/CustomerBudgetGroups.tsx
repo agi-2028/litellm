@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { fetchClient } from "@/lib/http/api";
-import { extractProxyErrorMessage } from "@/lib/http/client";
+import { useCustomerBudgetSave } from "./useCustomerBudgetSave";
 import { Button } from "@/components/ui/button";
 import type { Organization } from "./customerHierarchyForms";
 import CustomerBudgetGroupsEditor from "./CustomerBudgetGroupsEditor";
@@ -43,8 +43,7 @@ export default function CustomerBudgetGroups(props: Props) {
   };
   const { t } = useTranslation();
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, setError, run } = useCustomerBudgetSave();
   const base = draft?.base ?? organization;
   const groups = draft?.groups ?? customerBudgetGroupRows(base);
   const defaultGroupId = draft?.defaultGroupId ?? base.default_budget_template_id ?? "";
@@ -61,9 +60,7 @@ export default function CustomerBudgetGroups(props: Props) {
       setError(t(`customerPortal.createDialog.errors.${plan.error}`));
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       const response = props.global
         ? await fetchClient.PATCH(globalEndpoint, { body: plan.body })
         : await fetchClient.PATCH("/management/v1/customer_organizations/{customer_org_id}/default_budgets", {
@@ -73,15 +70,10 @@ export default function CustomerBudgetGroups(props: Props) {
       if (!(await onSaved(response.data))) return;
       setDraft(null);
       toast.success(t("customerPortal.hierarchy.saved"));
-    } catch (failure) {
-      setError(extractProxyErrorMessage(failure));
-    } finally {
-      setPending(false);
-    }
+    });
   };
   const reload = async () => {
-    setPending(true);
-    try {
+    await run(async () => {
       const response = props.global
         ? await fetchClient.GET(globalEndpoint)
         : await fetchClient.GET("/management/v1/customer_organizations/{customer_org_id}", {
@@ -90,11 +82,7 @@ export default function CustomerBudgetGroups(props: Props) {
       if (!(await onSaved(response.data))) return;
       setDraft(null);
       setError(null);
-    } catch (failure) {
-      setError(extractProxyErrorMessage(failure));
-    } finally {
-      setPending(false);
-    }
+    });
   };
   return (
     <form onSubmit={save} className="w-full space-y-5">

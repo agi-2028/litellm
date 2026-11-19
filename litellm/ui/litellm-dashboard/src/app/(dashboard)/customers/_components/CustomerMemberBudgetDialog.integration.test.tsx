@@ -127,6 +127,41 @@ describe("member budget dialog", () => {
     expect(await writes()[0].clone().json()).toEqual({ budget_id: null });
   });
 
+  it("reopens the saved budget before background reads finish", async () => {
+    const updated = {
+      ...member,
+      updated_at: "2026-11-19T00:00:00Z",
+      budget_override: { ...override, max_budget: 250 },
+    };
+    const refresh = Promise.withResolvers<Response>();
+    let saved = false;
+    fetchMock.mockImplementation(async (input) => {
+      const request = input as Request;
+      if (new URL(request.url).pathname.endsWith("/customer_organizations/org-1")) return json(organization);
+      if (request.method === "PATCH") {
+        saved = true;
+        return json(updated);
+      }
+      return saved ? refresh.promise : json(member);
+    });
+    const user = userEvent.setup();
+    renderSummary();
+    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "250" } });
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Edit budget", exact: true }));
+    try {
+      expect(await screen.findByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(250);
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly budget" }), { target: { value: "275" } });
+      refresh.resolve(json(updated));
+      await waitFor(() => expect(testQueryClient.isFetching()).toBe(0));
+      expect(screen.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(275);
+    } finally {
+      refresh.resolve(json(updated));
+    }
+  });
+
   it.each([null, "7d"])("preserves the existing reset period %s when saving rate-only limits", async (duration) => {
     const inheritedMember = {
       ...member,

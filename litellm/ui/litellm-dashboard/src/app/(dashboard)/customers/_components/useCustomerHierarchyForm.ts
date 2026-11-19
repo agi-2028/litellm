@@ -2,8 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { extractProxyErrorMessage } from "@/lib/http/client";
 import { saveCustomerHierarchy } from "./customerHierarchyApi";
+import { useCustomerBudgetSave } from "./useCustomerBudgetSave";
 import {
   buildCustomerHierarchyPatch,
   customerEntityId,
@@ -22,8 +22,7 @@ export function useCustomerHierarchyForm(
   const queryClient = useQueryClient();
   const initial = customerHierarchyFields(entity);
   const [fields, setFields] = useState(initial);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, setError, run } = useCustomerBudgetSave(onPendingChange);
   const update = <K extends keyof CustomerHierarchyFields>(key: K, value: CustomerHierarchyFields[K]) => {
     setFields((current) => ({ ...current, [key]: value }));
     setError(null);
@@ -37,26 +36,21 @@ export function useCustomerHierarchyForm(
     if (pending) return;
     const result = buildCustomerHierarchyPatch(entity, fields);
     if (!result.ok) return setError(t(CUSTOMER_HIERARCHY_FORM_ERRORS[result.error]));
-    setPending(true);
-    onPendingChange?.(true);
-    setError(null);
-    try {
+    await run(async () => {
       const saved = await saveCustomerHierarchy(customerEntityId(entity), result.patch);
-      if (!saved) return setError(t("customerPortal.hierarchy.error"));
+      if (!saved.data) return setError(t("customerPortal.hierarchy.error"));
+      await queryClient.cancelQueries({ queryKey: saved.queryKey, exact: true });
+      queryClient.setQueryData(saved.queryKey, saved.data);
       void queryClient.invalidateQueries({ queryKey: ["customer-hierarchy"] });
       void queryClient.invalidateQueries({ queryKey: ["customer-organizations"] });
+      void queryClient.invalidateQueries({ queryKey: ["get", "/management/v1/customer_teams/{customer_team_id}"] });
       void queryClient.invalidateQueries({ queryKey: ["get", "/management/v1/customer_members/{customer_member_id}"] });
       void queryClient.invalidateQueries({
         queryKey: ["get", "/management/v1/customer_organizations/{customer_org_id}"],
       });
       toast.success(t("customerPortal.hierarchy.saved"));
       onSaved();
-    } catch (cause) {
-      setError(extractProxyErrorMessage(cause));
-    } finally {
-      setPending(false);
-      onPendingChange?.(false);
-    }
+    });
   };
   return { fields, update, reset, pending, error, save, dirty: JSON.stringify(fields) !== JSON.stringify(initial) };
 }

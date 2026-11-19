@@ -15,6 +15,7 @@ import useAuthorized from "../../hooks/useAuthorized";
 import { isProxyAdminRole } from "@/utils/roles";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
+import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
 import { AdminOnlyNotice } from "@/components/shared/AdminOnlyNotice";
 import { appSurchargeField, appSurchargeValue, type App, type AppResource } from "./appForms";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
@@ -178,8 +179,7 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
   const [profile, setProfile] = useState(app?.default_tier_budget_id ?? "");
   const [autoCreate, setAutoCreate] = useState(app?.auto_create_customers ?? true);
   const [surcharge, setSurcharge] = useState(() => appSurchargeField(app?.customer_margin));
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, setError, run } = useCustomerBudgetSave();
   const [saved, setSaved] = useState(false);
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -194,10 +194,8 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
       setError(t("apps.surchargeInvalid"));
       return;
     }
-    setPending(true);
-    setError(null);
-    setSaved(false);
-    try {
+    await run(async () => {
+      setSaved(false);
       const body = {
         budget: appBudget.value,
         default_customer_member_budget: memberBudget.value,
@@ -217,11 +215,7 @@ function AppDefaultsForm({ resource, app }: { resource: AppResource; app?: App }
       await queryClient.invalidateQueries({ queryKey: ["app-organization"] });
       await queryClient.invalidateQueries({ queryKey: ["app-member"] });
       setSaved(true);
-    } catch (failure) {
-      setError(extractProxyErrorMessage(failure));
-    } finally {
-      setPending(false);
-    }
+    });
   };
   return (
     <form onSubmit={save} className="space-y-5" aria-label={t("apps.defaultsFor", { alias: resource.alias })}>

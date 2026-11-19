@@ -5,6 +5,7 @@ import { compactBudgetEditorFields, compactBudgetEditorValue } from "../../custo
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
+import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -360,7 +361,7 @@ function OrganizationAppForm({
   organizationAlias,
   row,
   pending,
-  onPendingChange: setPending,
+  onPendingChange,
   onClose,
 }: {
   resource: AppResource;
@@ -382,7 +383,7 @@ function OrganizationAppForm({
   const [member, setMember] = useState(() =>
     compactBudgetEditorFields(row?.customer_member_budget_id ? row.effective_customer_member_budget : null),
   );
-  const [error, setError] = useState<string | null>(null);
+  const { error, setError, run } = useCustomerBudgetSave(onPendingChange);
   const profileUnavailable = source === "profile" && !groups.isSuccess;
   const changeSource = (value: string | null) => {
     if (value === "custom" || value === "inherit") {
@@ -411,9 +412,7 @@ function OrganizationAppForm({
       setError(t(source === "profile" && !profile ? "apps.chooseProfile" : "customerPortal.hierarchy.invalidNumber"));
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       let appId = resource.app_id;
       if (!appId) {
         const created = await fetchClient.POST("/management/v1/apps", {
@@ -435,11 +434,7 @@ function OrganizationAppForm({
       await queryClient.invalidateQueries({ queryKey: ["app-organization"] });
       await queryClient.invalidateQueries({ queryKey: ["app-member"] });
       onClose();
-    } catch (failure) {
-      setError(extractProxyErrorMessage(failure));
-    } finally {
-      setPending(false);
-    }
+    });
   };
   return (
     <CustomerBudgetForm

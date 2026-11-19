@@ -14,6 +14,7 @@ import { type App, type AppMember } from "./appForms";
 import CustomerBudgetCompactFields from "../../customers/_components/CustomerBudgetCompactFields";
 import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
+import { useCustomerBudgetSave } from "../../customers/_components/useCustomerBudgetSave";
 import AppBudgetLimits from "./AppBudgetLimits";
 import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 
@@ -166,8 +167,7 @@ function MemberBudgetForm({
   const { t } = useTranslation();
   const original = row.budget_override_id ? row.effective_budget : null;
   const [fields, setFields] = useState(() => compactBudgetEditorFields(original));
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, setError, run } = useCustomerBudgetSave();
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (pending) return;
@@ -176,19 +176,13 @@ function MemberBudgetForm({
       setError(t(budget.error));
       return;
     }
-    setPending(true);
-    setError(null);
-    try {
+    await run(async () => {
       await fetchClient.PUT("/management/v1/apps/{app_id}/customer_members/{customer_member_id}", {
         params: { path: { app_id: app.app_id, customer_member_id: row.customer_member_id } },
         body: { budget_override: budget.value },
       });
       await onSaved();
-    } catch (failure) {
-      setError(extractProxyErrorMessage(failure));
-    } finally {
-      setPending(false);
-    }
+    });
   };
   return (
     <CustomerBudgetDialog
