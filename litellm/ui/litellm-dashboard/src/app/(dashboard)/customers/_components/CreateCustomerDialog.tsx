@@ -6,8 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { $api } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CustomerBudgetDialog, CustomerBudgetForm } from "./CustomerBudgetDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,77 +53,66 @@ export default function CreateCustomerDialog({ open, onOpenChange, onCreated }: 
     create.mutate({ body: result.body });
   };
   return (
-    <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
-      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
-        <form onSubmit={submit} className="flex min-h-0 flex-col">
-          <DialogHeader className="shrink-0 border-b px-6 py-5">
-            <DialogTitle className="text-xl">{t("customerPortal.createDialog.title")}</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-0 overflow-y-auto px-6 py-6">
-            <fieldset disabled={create.isPending} className="min-w-0 space-y-7">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="cc-name" className="font-normal text-muted-foreground">
-                    {t("customerPortal.createDialog.name")}
-                  </Label>
-                  <Input
-                    id="cc-name"
-                    value={fields.name}
-                    onChange={(event) => setFields({ ...fields, name: event.target.value })}
-                    placeholder={t("customerPortal.createDialog.namePlaceholder")}
-                    autoFocus
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="cc-org-id" className="font-normal text-muted-foreground">
-                    {t("customerPortal.createDialog.customerIdOptional")}
-                  </Label>
-                  <Input
-                    id="cc-org-id"
-                    value={fields.customerOrgId}
-                    onChange={(event) => setFields({ ...fields, customerOrgId: event.target.value })}
-                    placeholder={t("customerPortal.createDialog.customerIdPlaceholder")}
-                  />
-                </div>
-              </div>
-              <CreateCustomerOrganizationLimits
-                fields={fields}
-                disabled={create.isPending}
-                onChange={(patch) => {
-                  setFields({ ...fields, ...patch });
-                  setError(null);
-                }}
-              />
-              <CustomerBudgetGroupsEditor
-                groups={fields.groups}
-                defaultGroupId={fields.defaultGroupId}
-                disabled={create.isPending}
-                layout="table"
-                onChange={(groups, defaultGroupId) => {
-                  setFields({ ...fields, groups, defaultGroupId });
-                  setError(null);
-                }}
-              />
-            </fieldset>
+    <CustomerBudgetDialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      pending={create.isPending}
+      title={t("customerPortal.createDialog.title")}
+      className="max-h-[90dvh] w-[calc(100%-2rem)] sm:max-w-5xl"
+    >
+      <CustomerBudgetForm
+        onSubmit={submit}
+        pending={create.isPending}
+        error={error ? t(`customerPortal.createDialog.errors.${error}`) : null}
+        onClose={() => onOpenChange(false)}
+        dirty={Boolean(fields.name.trim())}
+        saveLabel={t(create.isPending ? "customerPortal.createDialog.creating" : "customerPortal.createDialog.submit")}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="cc-name" className="font-normal text-muted-foreground">
+              {t("customerPortal.createDialog.name")}
+            </Label>
+            <Input
+              id="cc-name"
+              value={fields.name}
+              onChange={(event) => setFields({ ...fields, name: event.target.value })}
+              placeholder={t("customerPortal.createDialog.namePlaceholder")}
+              autoFocus
+              required
+            />
           </div>
-          <div className="shrink-0 border-t bg-muted/20 px-6 py-4">
-            {error && (
-              <p role="alert" className="mb-3 text-sm text-destructive">
-                {t(`customerPortal.createDialog.errors.${error}`)}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={create.isPending}>
-                {t("customerPortal.common.cancel")}
-              </Button>
-              <Button type="submit" disabled={!fields.name.trim() || create.isPending}>
-                {create.isPending ? t("customerPortal.createDialog.creating") : t("customerPortal.createDialog.submit")}
-              </Button>
-            </DialogFooter>
+          <div className="space-y-1.5">
+            <Label htmlFor="cc-org-id" className="font-normal text-muted-foreground">
+              {t("customerPortal.createDialog.customerIdOptional")}
+            </Label>
+            <Input
+              id="cc-org-id"
+              value={fields.customerOrgId}
+              onChange={(event) => setFields({ ...fields, customerOrgId: event.target.value })}
+              placeholder={t("customerPortal.createDialog.customerIdPlaceholder")}
+            />
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <CreateCustomerOrganizationLimits
+          fields={fields}
+          disabled={create.isPending}
+          onChange={(patch) => {
+            setFields({ ...fields, ...patch });
+            setError(null);
+          }}
+        />
+        <CustomerBudgetGroupsEditor
+          groups={fields.groups}
+          defaultGroupId={fields.defaultGroupId}
+          disabled={create.isPending}
+          layout="table"
+          onChange={(groups, defaultGroupId) => {
+            setFields({ ...fields, groups, defaultGroupId });
+            setError(null);
+          }}
+        />
+      </CustomerBudgetForm>
+    </CustomerBudgetDialog>
   );
 }

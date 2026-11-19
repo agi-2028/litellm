@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import CustomerBudgetAmountInput from "./CustomerBudgetAmountInput";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { customerBudgetPeriod } from "./customerBudgetUsage";
@@ -143,22 +143,16 @@ export function CustomerCustomLimitFields({
         <Label htmlFor={`${idPrefix}-budget`} className="font-normal text-muted-foreground">
           {t("customerPortal.createDialog.budget")}
         </Label>
-        <InputGroup>
-          <InputGroupAddon>
-            <InputGroupText>$</InputGroupText>
-          </InputGroupAddon>
-          <InputGroupInput
-            id={`${idPrefix}-budget`}
-            aria-label={t("customerPortal.createDialog.spendLimitLabel")}
-            type="number"
-            min={0}
-            step="any"
-            placeholder={t(
-              inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
-            )}
-            value={fields.budgetAmount}
-            onChange={(event) => onChange({ budgetAmount: event.target.value })}
-          />
+        <CustomerBudgetAmountInput
+          id={`${idPrefix}-budget`}
+          label={t("customerPortal.createDialog.spendLimitLabel")}
+          disabled={disabled}
+          placeholder={t(
+            inheritBlank ? "customerPortal.hierarchy.useDefaultLimits" : "customerPortal.createDialog.noLimit",
+          )}
+          value={fields.budgetAmount}
+          onChange={(budgetAmount) => onChange({ budgetAmount })}
+        >
           {periodControl ?? (
             <Select
               value={fields.budgetDuration}
@@ -185,7 +179,7 @@ export function CustomerCustomLimitFields({
               </SelectContent>
             </Select>
           )}
-        </InputGroup>
+        </CustomerBudgetAmountInput>
       </div>
       {rateFields.map((field) => (
         <div key={field} className="min-w-0 space-y-2">

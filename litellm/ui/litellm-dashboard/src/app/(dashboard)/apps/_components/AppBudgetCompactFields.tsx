@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import CustomerBudgetAmountInput from "../../customers/_components/CustomerBudgetAmountInput";
 import { Label } from "@/components/ui/label";
 import CustomerAllowedModelsSelect from "../../customers/_components/CustomerAllowedModelsSelect";
 import { appBudgetPeriodAmount, updateAppBudgetPeriod, type AppBudgetFields, type Budget } from "./appForms";
@@ -32,21 +32,13 @@ export default function AppBudgetCompactFields({
             <Label htmlFor={`${id}-${period}`} className="font-normal text-muted-foreground">
               {t(period === "1mo" ? "apps.monthlyBudget" : "apps.yearlyBudget")}
             </Label>
-            <InputGroup>
-              <InputGroupAddon>
-                <InputGroupText>$</InputGroupText>
-              </InputGroupAddon>
-              <InputGroupInput
-                id={`${id}-${period}`}
-                type="number"
-                min={0}
-                step="any"
-                disabled={disabled}
-                placeholder={t("customerPortal.createDialog.noLimit")}
-                value={appBudgetPeriodAmount(fields, period)}
-                onChange={(event) => onChange(updateAppBudgetPeriod(fields, period, event.target.value))}
-              />
-            </InputGroup>
+            <CustomerBudgetAmountInput
+              id={`${id}-${period}`}
+              label={t(period === "1mo" ? "apps.monthlyBudget" : "apps.yearlyBudget")}
+              disabled={disabled}
+              value={appBudgetPeriodAmount(fields, period)}
+              onChange={(value) => onChange(updateAppBudgetPeriod(fields, period, value))}
+            />
           </div>
         ))}
         {rateFields.map((field) => (

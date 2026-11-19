@@ -6,17 +6,14 @@ import { useTranslation } from "react-i18next";
 import { fetchClient } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { loadApps } from "./appApi";
 import { compactAppBudgetFields, compactAppBudgetValue, type App, type AppMember } from "./appForms";
 import AppBudgetCompactFields from "./AppBudgetCompactFields";
 import { CustomerBudgetSourceSelect } from "../../customers/_components/CustomerLimitsFields";
 import { CustomerBudgetDialog, CustomerBudgetForm } from "../../customers/_components/CustomerBudgetDialog";
 import AppBudgetLimits from "./AppBudgetLimits";
-import { appBudgetWindows } from "./appBudgetPresentation";
-import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
-import AppUsageSpendCells, { type AppUsageContext } from "./AppUsageSpendCells";
-import { CustomerSpendHeaders } from "../../customers/_components/CustomerSpendCells";
+import AppBudgetSpendCells, { AppBudgetIdentity, AppBudgetTable, type AppUsageContext } from "./AppBudgetCells";
 
 const BUDGET_SOURCES = {
   member_override: "apps.memberOverride",
@@ -44,49 +41,17 @@ export default function CustomerMemberApps({
       {apps.isError && <p role="alert">{extractProxyErrorMessage(apps.error)}</p>}
       {apps.data?.length === 0 && <p>{t("apps.noMemberApps")}</p>}
       {apps.data && apps.data.length > 0 && (
-        <div className={usageContext ? "overflow-hidden rounded-lg border" : undefined}>
-          <Table className="w-full text-left text-sm" aria-label={t("apps.memberTitle")}>
-            <TableHeader>
-              <TableRow>
-                <TableHead
-                  className={usageContext ? "px-4" : "border-b py-3 text-xs font-medium text-muted-foreground"}
-                >
-                  {t("apps.alias")}
-                </TableHead>
-                {usageContext ? (
-                  <>
-                    <TableHead className="px-4">{t("apps.source")}</TableHead>
-                    <CustomerSpendHeaders usageLayout>
-                      <TableHead className="px-4">{t("customerPortal.hierarchy.maxBudget")}</TableHead>
-                    </CustomerSpendHeaders>
-                  </>
-                ) : (
-                  <TableHead className="border-b py-3 text-xs font-medium text-muted-foreground">
-                    {t("apps.memberBudget")}
-                  </TableHead>
-                )}
-                <TableHead
-                  className={
-                    usageContext ? "px-4 text-right" : "border-b py-3 text-xs font-medium text-muted-foreground"
-                  }
-                >
-                  {t("apps.actions")}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {apps.data.map((app) => (
-                <MemberAppRow
-                  key={app.app_id}
-                  app={app}
-                  memberId={memberId}
-                  usageContext={usageContext}
-                  onAppSelect={onAppSelect}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <AppBudgetTable scope="member" usageLayout={Boolean(usageContext)}>
+          {apps.data.map((app) => (
+            <MemberAppRow
+              key={app.app_id}
+              app={app}
+              memberId={memberId}
+              usageContext={usageContext}
+              onAppSelect={onAppSelect}
+            />
+          ))}
+        </AppBudgetTable>
       )}
     </section>
   );
@@ -139,11 +104,16 @@ function MemberAppRow({
   return (
     <>
       <TableRow>
-        <MemberAppIdentity app={app} row={member.data} usageContext={usageContext} onAppSelect={onAppSelect} />
+        <AppBudgetIdentity
+          app={app}
+          row={member.data}
+          sourceLabel={usageContext ? undefined : sourceLabel}
+          onAppSelect={onAppSelect}
+        />
         {usageContext && member.data ? (
           <>
             <TableCell className="px-4 text-muted-foreground">{sourceLabel}</TableCell>
-            <AppUsageSpendCells appId={app.app_id} alias={app.alias} row={member.data} context={usageContext} />
+            <AppBudgetSpendCells appId={app.app_id} alias={app.alias} row={member.data} context={usageContext} />
           </>
         ) : (
           <TableCell className="py-4">
@@ -177,42 +147,6 @@ function MemberAppRow({
         />
       )}
     </>
-  );
-}
-
-function MemberAppIdentity({
-  app,
-  row,
-  usageContext,
-  onAppSelect,
-}: {
-  app: App;
-  row: AppMember | undefined;
-  usageContext?: AppUsageContext;
-  onAppSelect?: (appId: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { primary } = appBudgetWindows(row?.effective_budget, row?.budget_usage);
-  const period = customerBudgetPeriod(primary?.budget_duration ?? null);
-  const periodLabel = period === "other" ? primary?.budget_duration : t(`apps.${period}`);
-  const sourceLabel = t(BUDGET_SOURCES[row?.budget_source ?? "none"]);
-  return (
-    <TableCell className={usageContext ? "px-4 py-5" : "py-4"}>
-      {onAppSelect ? (
-        <button
-          type="button"
-          onClick={() => onAppSelect(app.app_id)}
-          className="font-medium hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          {app.alias}
-        </button>
-      ) : (
-        <span className="font-medium">{app.alias}</span>
-      )}
-      <span className="mt-1 block text-xs text-muted-foreground">
-        {usageContext ? periodLabel : [sourceLabel, periodLabel].filter(Boolean).join(" · ")}
-      </span>
-    </TableCell>
   );
 }
 

@@ -89,10 +89,7 @@ export function CustomerSpendHeaders({
       <TableHead className={cn("text-right", usageLayout && "px-4")}>
         {t("customerPortal.analytics.yearlySpend")}
       </TableHead>
-      <TableHead className={cn("min-w-36 whitespace-normal text-right", usageLayout && "px-4 text-left")}>
-        {t("customerPortal.analytics.customerSpendShare")}
-      </TableHead>
-      <TableHead className={cn("text-right", usageLayout && "px-4")}>{t("customerPortal.analytics.tokens")}</TableHead>
+      <CustomerSpendMetricsHeaders usageLayout={usageLayout} />
       <TableHead className={cn("text-right", usageLayout && "px-4")}>{t("customerPortal.analytics.status")}</TableHead>
     </>
   );
@@ -161,10 +158,12 @@ export function CustomerSpendCells({
           )}
         </div>
       </TableCell>
-      <CustomerSpendShare monthlySpend={monthlySpend} organizationSpend={organizationSpend} usageLayout={usageLayout} />
-      <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>
-        {tokenContent ?? (tokens === null ? "—" : formatCompact(tokens))}
-      </TableCell>
+      <CustomerSpendMetricsCells
+        monthlySpend={monthlySpend}
+        organizationSpend={organizationSpend}
+        usageLayout={usageLayout}
+        tokenContent={tokenContent ?? (tokens === null ? "—" : formatCompact(tokens))}
+      />
       <TableCell className={cn("text-right", usageLayout && "px-4")}>
         <span
           className={cn(
@@ -176,6 +175,37 @@ export function CustomerSpendCells({
           {t(status)}
         </span>
       </TableCell>
+    </>
+  );
+}
+
+export function CustomerSpendMetricsHeaders({ usageLayout = false }: { usageLayout?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <TableHead className={cn("min-w-36 whitespace-normal text-right", usageLayout && "px-4 text-left")}>
+        {t("customerPortal.analytics.customerSpendShare")}
+      </TableHead>
+      <TableHead className={cn("text-right", usageLayout && "px-4")}>{t("customerPortal.analytics.tokens")}</TableHead>
+    </>
+  );
+}
+
+export function CustomerSpendMetricsCells({
+  monthlySpend,
+  organizationSpend,
+  usageLayout = false,
+  tokenContent,
+}: {
+  monthlySpend: number | null;
+  organizationSpend: number | null;
+  usageLayout?: boolean;
+  tokenContent: ReactNode;
+}) {
+  return (
+    <>
+      <CustomerSpendShare monthlySpend={monthlySpend} organizationSpend={organizationSpend} usageLayout={usageLayout} />
+      <TableCell className={cn("text-right tabular-nums", usageLayout && "px-4")}>{tokenContent}</TableCell>
     </>
   );
 }

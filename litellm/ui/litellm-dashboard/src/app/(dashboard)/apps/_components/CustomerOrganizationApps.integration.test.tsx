@@ -55,9 +55,10 @@ beforeEach(() => {
   registerBaseUrlGetter(() => "http://localhost");
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input) => {
-    const request = input as Request;
+    const request = new Request(input);
     requests.push(request.clone());
     const path = new URL(request.url).pathname;
+    if (path.includes("/daily/activity")) return json({ results: [], metadata: { has_more: false, total_pages: 1 } });
     if (path.endsWith("/apps/definition")) return json({ resource_type: configured ? "team" : null });
     if (path.endsWith("/apps/resources"))
       return json([
@@ -97,6 +98,56 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer app budgets", () => {
+  it("shows current-month app tokens and share of the entire customer spend in the compact table", async () => {
+    bound = true;
+    assigned = true;
+    const serve = fetchMock.getMockImplementation()!;
+    const usageRequests: URL[] = [];
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(new Request(input, init).url);
+      if (!url.pathname.includes("/daily/activity")) return serve(input, init);
+      usageRequests.push(url);
+      const appScoped = url.searchParams.get("app_id") === app.app_id;
+      const metrics = {
+        spend: appScoped ? 20 : 100,
+        total_tokens: 1500,
+        prompt_tokens: 1000,
+        completion_tokens: 500,
+        api_requests: 3,
+      };
+      return json({
+        results: [
+          { date: url.searchParams.get("start_date"), metrics, breakdown: { entities: { "org-1": { metrics } } } },
+        ],
+        metadata: { has_more: false, total_pages: 1 },
+      });
+    });
+    const user = userEvent.setup();
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    const table = within(await screen.findByRole("table", { name: "App budgets" }));
+    const tokens = await table.findByRole("button", { name: "1,500 total tokens. View breakdown" });
+    expect(table.getByRole("columnheader", { name: "Budget & usage" })).toBeInTheDocument();
+    expect(table.getByRole("columnheader", { name: "Tokens" })).toBeInTheDocument();
+    expect(await table.findByText("20%")).toBeInTheDocument();
+    expect(table.getByRole("meter", { name: "Share of customer spend" })).toHaveAttribute("aria-valuenow", "20");
+    expect(usageRequests.every((url) => url.searchParams.get("customer_org_ids") === "org-1")).toBe(true);
+    expect(usageRequests.filter((url) => url.searchParams.get("app_id") === app.app_id)).toHaveLength(1);
+    const monthlyTotal = usageRequests.find((url) => url.pathname.endsWith("/aggregated"));
+    expect(monthlyTotal?.searchParams.has("app_id")).toBe(false);
+    expect(
+      usageRequests.some(
+        (url) =>
+          url.searchParams.get("app_id") === app.app_id &&
+          url.searchParams.get("start_date") === monthlyTotal?.searchParams.get("start_date") &&
+          url.searchParams.get("end_date") === monthlyTotal?.searchParams.get("end_date"),
+      ),
+    ).toBe(true);
+    await user.click(tokens);
+    expect(await screen.findByText("Input tokens")).toBeInTheDocument();
+    expect(screen.getByText("1,000")).toBeInTheDocument();
+    expect(screen.getByText("500")).toBeInTheDocument();
+  });
+
   it("waits for a delayed legacy preset without offering other organization presets", async () => {
     bound = true;
     assigned = true;
