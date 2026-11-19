@@ -20956,7 +20956,10 @@
       "title": "Organization budget groups",
       "help": "Create reusable budgets, then assign them to customer organizations.",
       "placeholder": "Select a group or enter a dollar amount",
-      "custom": "Use this custom budget"
+      "custom": "Use this custom budget",
+      "customBadge": "Custom",
+      "groupBadge": "Budget group",
+      "assignedGroup": "Organization budget group {{name}}"
     },
     "budgetGroups": {
       "atCap": "At the cap",

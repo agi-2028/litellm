@@ -3,11 +3,13 @@ import type { SortingState } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { createSerializer, parseAsString } from "nuqs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/cva.config";
 import { uiHref } from "@/utils/uiHref";
+import { $api } from "@/lib/http/api";
 import CustomerBudgetSpend, { CustomerBudgetWindow } from "./CustomerBudgetSpend";
-import type { CustomerOrganizationRow } from "./customerOrganizations";
+import { customerOrganizationBudgetSource, type CustomerOrganizationRow } from "./customerOrganizations";
 import { CustomerBudgetLimitCell } from "./CustomerBudgetColumn";
 
 const usageHref = createSerializer({ org: parseAsString, from: parseAsString, to: parseAsString });
@@ -19,6 +21,43 @@ const COLUMNS = [
   { id: "share", label: "customerPortal.list.columns.overallSpendShare" },
   { id: "status", label: "customerPortal.list.columns.status" },
 ] as const;
+const GROUP_COLORS = [
+  { dot: "bg-amber-600", badge: "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40" },
+  { dot: "bg-emerald-600", badge: "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40" },
+  { dot: "bg-violet-500", badge: "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40" },
+  { dot: "bg-sky-500", badge: "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/40" },
+  { dot: "bg-rose-500", badge: "border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40" },
+] as const;
+
+function OrganizationBudgetBadge({
+  source,
+  color,
+}: {
+  source: ReturnType<typeof customerOrganizationBudgetSource>;
+  color?: (typeof GROUP_COLORS)[number];
+}) {
+  const { t } = useTranslation();
+  if (!source) return null;
+  if (source.kind === "custom") {
+    return (
+      <Badge variant="outline" className="border-dashed bg-background text-muted-foreground">
+        {t("customerPortal.organizationGroups.customBadge")}
+      </Badge>
+    );
+  }
+  const name = source.name ?? t("customerPortal.organizationGroups.groupBadge");
+  return (
+    <Badge
+      variant="outline"
+      className={cn("max-w-40 gap-1.5", color?.badge ?? "bg-muted/40")}
+      title={name}
+      aria-label={t("customerPortal.organizationGroups.assignedGroup", { name })}
+    >
+      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", color?.dot ?? "bg-muted-foreground")} />
+      <span className="truncate">{name}</span>
+    </Badge>
+  );
+}
 
 export default function CustomerOrganizationsTable({
   rows,
@@ -38,6 +77,10 @@ export default function CustomerOrganizationsTable({
   endDate: string;
 }) {
   const { t } = useTranslation();
+  const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
+  const groupColors = new Map(
+    groups.data?.default_budgets.map((group, index) => [group.budget_id, GROUP_COLORS[index % GROUP_COLORS.length]]),
+  );
   return (
     <Table aria-label={t("customerPortal.list.title")}>
       <TableHeader>
@@ -151,7 +194,12 @@ export default function CustomerOrganizationsTable({
                     )}
                   </div>
                 </TableCell>
-                <CustomerBudgetLimitCell limit={budgetLimit} rateLimits={organization.budget} />
+                <CustomerBudgetLimitCell limit={budgetLimit} rateLimits={organization.budget}>
+                  <OrganizationBudgetBadge
+                    source={customerOrganizationBudgetSource(organization, groups.data?.default_budgets)}
+                    color={groupColors.get(organization.budget_id ?? "")}
+                  />
+                </CustomerBudgetLimitCell>
                 <TableCell className="px-4">
                   <div className="flex items-center gap-3">
                     <div

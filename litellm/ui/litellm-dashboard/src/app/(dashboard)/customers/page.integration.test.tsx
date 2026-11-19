@@ -10,13 +10,15 @@ import {
   within,
 } from "../../../../tests/test-utils";
 import CustomersPage from "./page";
+import type { CustomerOrganization } from "./_components/customerOrganizations";
 
 vi.unmock("@/app/(dashboard)/hooks/useAuthorized");
 const NOW = new Date("2024-03-15T12:00:00Z");
 const requests: URL[] = [];
 const creations: unknown[] = [];
 let failed = false;
-const original = Array.from({ length: 30 }, (_, index) => ({
+let groupsFailed = false;
+const original: CustomerOrganization[] = Array.from({ length: 30 }, (_, index) => ({
   customer_org_id: `customer-${String(index).padStart(2, "0")}`,
   alias: `Customer ${String(index).padStart(2, "0")}`,
   spend: index === 0 ? 8 : 0,
@@ -29,7 +31,12 @@ const original = Array.from({ length: 30 }, (_, index) => ({
         ]
       : [],
   member_count: 0,
+  default_budgets: [],
+  budget_groups_revision: "revision",
   created_at: new Date(Date.UTC(2024, 1, index + 1)).toISOString(),
+  updated_at: NOW.toISOString(),
+  created_by: "admin",
+  updated_by: "admin",
 }));
 let organizations = [...original];
 const handleRequest = async (request: Request): Promise<Response> => {
@@ -38,6 +45,14 @@ const handleRequest = async (request: Request): Promise<Response> => {
     return Response.json({ server_root_path: "", proxy_base_url: "", admin_ui_disabled: false });
   if (url.pathname === "/management/v1/users/me")
     return Response.json({ user_id: "admin", user_role: "proxy_admin", user_email: null });
+  if (url.pathname === "/management/v1/customer_organization_budget_groups") {
+    if (groupsFailed) return Response.json({ detail: "Unavailable" }, { status: 503 });
+    return Response.json({
+      default_budgets: [{ budget_id: "group-growth", name: "Growth" }],
+      default_budget_template_id: null,
+      budget_groups_revision: "revision",
+    });
+  }
   if (url.pathname === "/management/v1/customer_organizations" && request.method === "GET")
     return Response.json({
       data: organizations,
@@ -105,6 +120,7 @@ beforeEach(() => {
   creations.length = 0;
   organizations = [...original];
   failed = false;
+  groupsFailed = false;
   const claims = { key: "sk-test", user_id: "admin", user_role: "proxy_admin", exp: NOW.getTime() / 1000 + 3600 };
   document.cookie = `token=${btoa("{}")}.${btoa(JSON.stringify(claims))}.test; Path=/`;
   vi.stubGlobal(
@@ -128,6 +144,37 @@ const customerLinks = () =>
   });
 
 describe("customer organization overview", () => {
+  it("shows each organization's assigned tier or custom budget beside its limits", async () => {
+    organizations = [
+      {
+        ...original[0],
+        budget_id: "group-growth",
+        budget_is_shared: true,
+        default_budgets: [{ budget_id: "group-growth", name: "Member default" }],
+      },
+      { ...original[1], budget_id: "private-budget", budget_is_shared: false, budget: { max_budget: 25 } },
+      original[2],
+    ];
+    renderWithProviders(<CustomersPage />);
+    await screen.findByLabelText("Organization budget group Growth");
+    expect(
+      within(screen.getByRole("row", { name: /Customer 00/ })).getByLabelText("Organization budget group Growth"),
+    ).toHaveTextContent("Growth");
+    expect(within(screen.getByRole("row", { name: /Customer 01/ })).getByText("Custom")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Customer 02/ })).queryByText("Custom")).not.toBeInTheDocument();
+    expect(screen.queryByText("Member default")).not.toBeInTheDocument();
+  });
+
+  it("keeps limits visible without calling a shared tier custom when its name cannot load", async () => {
+    groupsFailed = true;
+    organizations = [{ ...original[0], budget_id: "group-growth", budget_is_shared: true }];
+    renderWithProviders(<CustomersPage />);
+    const row = await screen.findByRole("row", { name: /Customer 00/ });
+    expect(within(row).getByText("Budget group")).toBeInTheDocument();
+    expect(within(row).getByText("$8.00 / $10.00")).toBeInTheDocument();
+    expect(within(row).queryByText("Custom")).not.toBeInTheDocument();
+  });
+
   it("should keep complete totals and shares while sorting, paginating, and searching", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CustomersPage />);
@@ -205,7 +252,7 @@ describe("customer organization overview", () => {
       fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "New organization" } });
     });
     act(() => {
-      fireEvent.change(screen.getByLabelText("Customer organization id"), { target: { value: "new-org" } });
+      fireEvent.change(screen.getByLabelText("Organization ID (optional)"), { target: { value: "new-org" } });
     });
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Create customer" }));
     await screen.findByRole("link", { name: "New organization" });
