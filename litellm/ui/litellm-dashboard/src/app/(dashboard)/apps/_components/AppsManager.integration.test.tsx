@@ -55,8 +55,10 @@ beforeEach(() => {
     if (path.endsWith("/apps/resources")) return json(resources);
     if (path.endsWith("/apps/app-chat")) return json(configuredApps[0]);
     if (path.endsWith("/customer_organization_budget_groups"))
+      return json({ default_budgets: [{ budget_id: "org-standard", name: "Standard", max_budget: 1000 }] });
+    if (path.endsWith("/app_customer_organization_budget_groups"))
       return json({
-        default_budgets: [{ budget_id: "standard", name: "Standard", max_budget: 100 }],
+        default_budgets: [{ budget_id: "standard", name: "Tier 1", max_budget: 100 }],
         revision: "a".repeat(64),
       });
     if (path.endsWith("/apps") && request.method === "POST") return json(app);
@@ -99,7 +101,7 @@ describe("Gateway app definition", () => {
     const user = userEvent.setup();
     render(<AppsManager />);
     await user.click(await screen.findByRole("button", { name: "chat" }));
-    await chooseAppOption(user, await screen.findByRole("combobox", { name: "Budget group" }), "Standard");
+    await chooseAppOption(user, await screen.findByRole("combobox", { name: "Budget group" }), "Tier 1");
     expect(screen.getByText("$100.00")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save app settings" }));
     await waitFor(() => expect(requests.some((request) => request.method === "POST")).toBe(true));

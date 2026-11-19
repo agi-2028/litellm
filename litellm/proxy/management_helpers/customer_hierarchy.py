@@ -346,12 +346,20 @@ class StoredBudget(BudgetRecord):
     name: str | None = None
 
 
-_ORGANIZATION_GROUP_IDS: Final = "customer_organization_budget_group_ids"
+class BudgetGroupScope(str, Enum):
+    ORGANIZATION = "customer_organization_budget_group_ids"
+    APP_ORGANIZATION = "app_customer_organization_budget_group_ids"
+
+
 _BUDGET_IDS: Final = TypeAdapter(tuple[str, ...])
 
 
 async def organization_budget_group_ids(config: TableActions[PrismaRecord]) -> tuple[str, ...]:
-    row: Final = await config.find_unique(where={"param_name": _ORGANIZATION_GROUP_IDS})
+    return await budget_group_ids(config, BudgetGroupScope.ORGANIZATION)
+
+
+async def budget_group_ids(config: TableActions[PrismaRecord], scope: BudgetGroupScope) -> tuple[str, ...]:
+    row: Final = await config.find_unique(where={"param_name": scope.value})
     if row is None:
         return ()
     value: Final = row.model_dump()["param_value"]
@@ -934,18 +942,23 @@ class CustomerHierarchyStore:
         return Failure(ErrorCode.TEMPLATE_NOT_IN_ORG)
 
     async def configure_templates(
-        self, organization_id: str | None, payload: BudgetGroupsUpdate, actor: str
+        self,
+        organization_id: str | None,
+        payload: BudgetGroupsUpdate,
+        actor: str,
+        *,
+        scope: BudgetGroupScope = BudgetGroupScope.ORGANIZATION,
     ) -> BudgetGroups | Failure:
         if organization_id is None:
             await self.lock_customer_identities()
             await self.db.query_raw(
                 'SELECT budget_id FROM "LiteLLM_BudgetTable" WHERE budget_id = ANY($1::text[]) ORDER BY budget_id FOR UPDATE',
-                list(await organization_budget_group_ids(self.config)),
+                list(await budget_group_ids(self.config, scope)),
             )
         else:
             await self.lock_organization(organization_id)
             await self.db.query_raw(_LOCK_TEMPLATES_SQL, organization_id)
-        organization: Final = await self.get_budget_groups(organization_id)
+        organization: Final = await self.get_budget_groups(organization_id, scope=scope)
         if isinstance(organization, Failure):
             return organization
         if payload.expected_revision != organization.budget_groups_revision:
@@ -986,21 +999,23 @@ class CustomerHierarchyStore:
             from prisma import Json
 
             await self.config.upsert(
-                where={"param_name": _ORGANIZATION_GROUP_IDS},
+                where={"param_name": scope.value},
                 data={
-                    "create": {"param_name": _ORGANIZATION_GROUP_IDS, "param_value": Json(list(ids))},
+                    "create": {"param_name": scope.value, "param_value": Json(list(ids))},
                     "update": {"param_value": Json(list(ids))},
                 },
             )
         else:
             await self.write_template_metadata(organization_id, ids, default_id, actor)
         await self._delete_unused_budgets(removed)
-        return await self.get_budget_groups(organization_id)
+        return await self.get_budget_groups(organization_id, scope=scope)
 
-    async def get_budget_groups(self, organization_id: str | None) -> BudgetGroups | Failure:
+    async def get_budget_groups(
+        self, organization_id: str | None, *, scope: BudgetGroupScope = BudgetGroupScope.ORGANIZATION
+    ) -> BudgetGroups | Failure:
         if organization_id is not None:
             return await self.get_organization(organization_id)
-        rows: Final = await find_many_in(self.budgets, "budget_id", await organization_budget_group_ids(self.config))
+        rows: Final = await find_many_in(self.budgets, "budget_id", await budget_group_ids(self.config, scope))
         budgets: Final = tuple(OrganizationBudget.model_validate(row, from_attributes=True) for row in rows)
         return BudgetGroups(default_budgets=tuple(sorted(budgets, key=lambda budget: budget.budget_id)))
 
@@ -1355,7 +1370,10 @@ class CustomerHierarchyStore:
         return tuple(row.entity_id for row in ordered[(page - 1) * page_size : page * page_size])
 
     async def _delete_unused_budgets(self, budget_ids: Sequence[str]) -> None:
-        groups: Final = await organization_budget_group_ids(self.config)
+        groups: Final = (
+            *await organization_budget_group_ids(self.config),
+            *await budget_group_ids(self.config, BudgetGroupScope.APP_ORGANIZATION),
+        )
         where: Final[Mapping[str, object]] = {field: {"none": {}} for field in _BUDGET_REFERENCE_FIELDS}
         await delete_many_in(
             self.budgets,

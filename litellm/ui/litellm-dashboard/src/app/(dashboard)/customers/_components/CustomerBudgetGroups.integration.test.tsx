@@ -46,10 +46,11 @@ describe("CustomerBudgetGroups", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it.each([false, true])("saves rate-only edits through the existing group endpoint, global=%s", async (global) => {
-    fetchMock.mockResolvedValue(json(organization));
+    const source = { ...organization, default_budget_template_id: global ? null : "standard" };
+    fetchMock.mockResolvedValue(json(source));
     render(
       global ? (
-        <CustomerBudgetGroups organization={organization} onSaved={onSaved} global />
+        <CustomerBudgetGroups organization={source} onSaved={onSaved} global />
       ) : (
         <CustomerBudgetGroups organization={organization} onSaved={onSaved} />
       ),
@@ -67,7 +68,7 @@ describe("CustomerBudgetGroups", () => {
     );
     expect(await request.clone().json()).toEqual({
       expected_revision: organization.budget_groups_revision,
-      default_budget_template: "Standard",
+      default_budget_template: global ? null : "Standard",
       default_budgets: [
         { budget_id: "standard", name: "Standard", tpm_limit: 50000, rpm_limit: 0 },
         { budget_id: "old", name: "Old" },
@@ -75,12 +76,15 @@ describe("CustomerBudgetGroups", () => {
     });
   });
 
-  it("creates and removes organization groups through the shared editor in Settings", async () => {
+  it.each([
+    ["Organization budget groups", "/management/v1/customer_organization_budget_groups"],
+    ["App × customer organization budget groups", "/management/v1/app_customer_organization_budget_groups"],
+  ])("saves only the %s catalog in Settings", async (title, endpoint) => {
     const user = userEvent.setup();
     const catalog = { ...organization, default_budget_template_id: null, default_budgets: [] };
     fetchMock.mockImplementation(async (input) => {
       const request = input as Request;
-      expect(new URL(request.url).pathname).toBe("/management/v1/customer_organization_budget_groups");
+      if (request.method === "PATCH") expect(new URL(request.url).pathname).toBe(endpoint);
       return json(
         request.method === "PATCH"
           ? {
@@ -93,21 +97,32 @@ describe("CustomerBudgetGroups", () => {
       );
     });
     renderWithProviders(<CustomerSettings />);
-    await user.click(await screen.findByRole("button", { name: "Add budget group" }));
-    fireEvent.change(screen.getByLabelText("Group name 1"), { target: { value: "Starter" } });
-    fireEvent.change(screen.getByLabelText("Group 1 monthly budget (USD)"), { target: { value: "0" } });
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled());
-    const request = fetchMock.mock.calls.at(-1)?.[0] as Request;
+    const editor = within(await screen.findByRole("region", { name: title }));
+    await user.click(await editor.findByRole("button", { name: "Add budget group" }));
+    fireEvent.change(editor.getByLabelText("Group name 1"), { target: { value: "Starter" } });
+    fireEvent.change(editor.getByLabelText("Group 1 monthly budget (USD)"), { target: { value: "0" } });
+    expect(editor.queryByRole("radio")).not.toBeInTheDocument();
+    expect(editor.queryByRole("combobox", { name: "New members join" })).not.toBeInTheDocument();
+    await user.click(editor.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(editor.getByRole("button", { name: "Save changes" })).toBeDisabled());
+    const request = fetchMock.mock.calls
+      .map(([input]) => input as Request)
+      .find((request) => request.method === "PATCH")!;
+    expect(new URL(request.url).pathname).toBe(endpoint);
+    const otherTitle =
+      title === "Organization budget groups"
+        ? "App × customer organization budget groups"
+        : "Organization budget groups";
+    expect(
+      within(screen.getByRole("region", { name: otherTitle })).queryByDisplayValue("Starter"),
+    ).not.toBeInTheDocument();
     expect(await request.clone().json()).toEqual({
       expected_revision: organization.budget_groups_revision,
       default_budget_template: null,
       default_budgets: [{ name: "Starter", budget_limits: [{ budget_duration: "1mo", max_budget: 0 }] }],
     });
-    await user.click(screen.getByRole("button", { name: "Remove Starter" }));
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    await user.click(editor.getByRole("button", { name: "Remove Starter" }));
+    expect(editor.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
   it("should save additions, edited limits, the new default and deletions together", async () => {
@@ -124,7 +139,7 @@ describe("CustomerBudgetGroups", () => {
       target: { value: "15" },
     });
     await user.click(screen.getByRole("combobox", { name: "Group 1 at the cap" }));
-    await user.click(screen.getByRole("option", { name: "Pause, they can request more" }));
+    await user.click(await screen.findByRole("option", { name: "Pause, they can request more" }));
     await user.click(screen.getByRole("button", { name: "Add budget group" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Group name 3" }), { target: { value: "New" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Group 3 monthly budget (USD)" }), {

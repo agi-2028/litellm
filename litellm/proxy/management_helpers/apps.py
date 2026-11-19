@@ -14,8 +14,10 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from litellm.proxy.management_helpers.customer_budget_usage import app_budget_usage
 from litellm.proxy.management_helpers.customer_hierarchy import (
+    BudgetGroupScope,
     CustomerHierarchyStore,
     PrismaRecord,
+    budget_group_ids,
     organization_budget_group_ids,
     related_budget,
 )
@@ -316,7 +318,11 @@ class AppStore:
         if budget_id is None:
             return True
         return (
-            budget_id in await organization_budget_group_ids(self.customers.config)
+            budget_id
+            in (
+                *await budget_group_ids(self.customers.config, BudgetGroupScope.APP_ORGANIZATION),
+                *await organization_budget_group_ids(self.customers.config),
+            )
             and await self.budget(budget_id) is not None
         )
 

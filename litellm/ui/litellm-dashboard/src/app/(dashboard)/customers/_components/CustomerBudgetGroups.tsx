@@ -19,10 +19,19 @@ interface Draft {
 
 type Props =
   | { organization: Organization; onSaved: (organization: Organization) => void | Promise<void>; global?: false }
-  | { organization: BudgetGroups; onSaved: (groups: BudgetGroups) => void | Promise<void>; global: true };
+  | {
+      organization: BudgetGroups;
+      onSaved: (groups: BudgetGroups) => void | Promise<void>;
+      global: true;
+      scope?: "organization" | "app";
+    };
 
 export default function CustomerBudgetGroups(props: Props) {
   const { organization } = props;
+  const globalEndpoint =
+    props.global && props.scope === "app"
+      ? "/management/v1/app_customer_organization_budget_groups"
+      : "/management/v1/customer_organization_budget_groups";
   const onSaved = async (data: BudgetGroups | Organization | undefined) => {
     if (!data) {
       setError(t("customerPortal.hierarchy.error"));
@@ -56,7 +65,7 @@ export default function CustomerBudgetGroups(props: Props) {
     setError(null);
     try {
       const response = props.global
-        ? await fetchClient.PATCH("/management/v1/customer_organization_budget_groups", { body: plan.body })
+        ? await fetchClient.PATCH(globalEndpoint, { body: plan.body })
         : await fetchClient.PATCH("/management/v1/customer_organizations/{customer_org_id}/default_budgets", {
             params: { path: { customer_org_id: props.global ? "" : props.organization.customer_org_id } },
             body: plan.body,
@@ -74,7 +83,7 @@ export default function CustomerBudgetGroups(props: Props) {
     setPending(true);
     try {
       const response = props.global
-        ? await fetchClient.GET("/management/v1/customer_organization_budget_groups")
+        ? await fetchClient.GET(globalEndpoint)
         : await fetchClient.GET("/management/v1/customer_organizations/{customer_org_id}", {
             params: { path: { customer_org_id: props.global ? "" : props.organization.customer_org_id } },
           });
@@ -92,6 +101,7 @@ export default function CustomerBudgetGroups(props: Props) {
       <fieldset disabled={pending}>
         <CustomerBudgetGroupsEditor
           memberGroups={!props.global}
+          appGroups={props.global && props.scope === "app"}
           groups={groups}
           showHeading={false}
           defaultGroupId={defaultGroupId}

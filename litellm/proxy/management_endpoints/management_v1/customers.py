@@ -17,6 +17,7 @@ from litellm.proxy.list_api.common import (
 )
 from litellm.proxy.management_endpoints.management_v1.common import MANAGEMENT_V1_PREFIX
 from litellm.proxy.management_helpers.customer_hierarchy import (
+    BudgetGroupScope,
     BudgetSort,
     CustomerHierarchy,
     CustomerPortalLimits,
@@ -251,6 +252,42 @@ async def configure_customer_organization_budget_groups(
     await forget_customer_hierarchies(members, cache)
     await forget_customer_organization_aliases(aliases, cache)
     return groups
+
+
+@router.get(
+    "/app_customer_organization_budget_groups",
+    response_model=BudgetGroups,
+    description="List reusable app × customer organization budget groups, independently of organization groups. "
+    "Proxy admins only.",
+)
+@management_endpoint_wrapper
+async def get_app_customer_organization_budget_groups(
+    hierarchy: Annotated[CustomerHierarchy, Depends(get_customer_hierarchy)],
+) -> BudgetGroups:
+    return resolve(
+        await hierarchy.transaction(
+            lambda store: store.get_budget_groups(None, scope=BudgetGroupScope.APP_ORGANIZATION)
+        )
+    )
+
+
+@router.patch(
+    "/app_customer_organization_budget_groups",
+    response_model=BudgetGroups,
+    description="Save the complete app × customer organization budget group list with its expected_revision. "
+    "default_budget_template must be null. Stale revisions or referenced deletions return 409. Proxy admins only.",
+)
+@management_endpoint_wrapper
+async def configure_app_customer_organization_budget_groups(
+    data: BudgetGroupsUpdate,
+    actor: Annotated[str, Depends(customer_actor)],
+    hierarchy: Annotated[CustomerHierarchy, Depends(get_customer_hierarchy)],
+) -> BudgetGroups:
+    return resolve(
+        await hierarchy.transaction(
+            lambda store: store.configure_templates(None, data, actor, scope=BudgetGroupScope.APP_ORGANIZATION)
+        )
+    )
 
 
 @router.get(

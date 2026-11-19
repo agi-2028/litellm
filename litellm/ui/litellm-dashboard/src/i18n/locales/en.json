@@ -46,7 +46,7 @@
     "loading": "Loading app budgets…",
     "selectApp": "Select an app",
     "profile": "Budget group",
-    "manageProfiles": "Manage customer organization budget groups",
+    "manageProfiles": "Manage app × customer organization budget groups",
     "chooseProfile": "Select a budget group",
     "noDefaultProfile": "No default budget group",
     "defaultProfileHint": "Customers without their own app budget or selected budget group inherit this group.",
@@ -20962,6 +20962,10 @@
     "loadFailed": "Could not load this model group's deployments. Saved weights are kept."
   },
   "customerPortal": {
+    "appOrganizationGroups": {
+      "title": "App × customer organization budget groups",
+      "help": "Reusable limits for one customer's usage within an app. These are separate from organization-wide limits."
+    },
     "organizationGroups": {
       "title": "Organization budget groups",
       "help": "Create reusable budgets, then assign them to customer organizations.",
@@ -20972,6 +20976,7 @@
       "assignedGroup": "Organization budget group {{name}}"
     },
     "budgetGroups": {
+      "settingsHint": "Manage separate presets for organization-wide limits and for each customer's usage within an app.",
       "atCap": "At the cap",
       "atCapLabel": "Group {{index}} at the cap",
       "pauseUntilReset": "Pause until reset",

@@ -73,7 +73,14 @@ beforeEach(() => {
     }
     if (path.endsWith("/customer_organization_budget_groups"))
       return json({
-        default_budgets: [{ budget_id: "standard", name: "Standard", max_budget: 100 }],
+        default_budgets: [
+          { budget_id: "org-standard", name: "Standard", max_budget: 1000 },
+          { budget_id: "org-enterprise", name: "Enterprise", max_budget: 5000 },
+        ],
+      });
+    if (path.endsWith("/app_customer_organization_budget_groups"))
+      return json({
+        default_budgets: [{ budget_id: "standard", name: "Tier 1", max_budget: 100 }],
         revision: "a".repeat(64),
       });
     if (request.method === "PUT") {
@@ -90,6 +97,34 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("customer app budgets", () => {
+  it("keeps an existing legacy preset without offering other organization presets", async () => {
+    bound = true;
+    assigned = true;
+    const serve = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      const request = input as Request;
+      if (request.method === "GET" && new URL(request.url).pathname.endsWith("/customer_organizations/org-1"))
+        return json({ ...assignedBudget, tier_budget_id: "org-standard" });
+      return serve(input, init);
+    });
+    const user = userEvent.setup();
+    render(<CustomerOrganizationApps organizationId="org-1" />);
+    await user.click(await screen.findByRole("button", { name: "Edit budget for chat" }));
+    const source = await screen.findByRole("combobox", { name: "Budget source" });
+    await waitFor(() => expect(source).toHaveTextContent("Standard"));
+    await user.click(source);
+    expect(await screen.findByRole("option", { name: /^Tier 1/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^Enterprise/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /^Standard/ }));
+    await user.click(screen.getByRole("button", { name: "Save app budget" }));
+    await waitFor(() => expect(requests.some((request) => request.method === "PUT")).toBe(true));
+    expect(await requests.find((request) => request.method === "PUT")!.json()).toEqual({
+      tier_budget_id: "org-standard",
+      budget_override: null,
+      customer_member_budget: null,
+    });
+  });
+
   it("should show recorded period usage separately from cumulative spend", async () => {
     bound = true;
     assigned = true;
@@ -144,7 +179,9 @@ describe("customer app budgets", () => {
     await chooseAppOption(user, dialog.getByRole("combobox", { name: "Select an app" }), "chat");
     expect(dialog.getByRole("textbox", { name: "Customer organization" })).toHaveValue("Customer Y");
     await user.click(screen.getByRole("combobox", { name: "Budget source" }));
-    await user.click(await screen.findByRole("option", { name: /^Standard/ }));
+    expect(await screen.findByRole("option", { name: /^Tier 1/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^Standard/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: /^Tier 1/ }));
     const member = within(screen.getByRole("region", { name: "Per-member limits (optional)" }));
     await user.click(member.getByRole("switch", { name: "Set per-member limits" }));
     act(() => {
@@ -183,7 +220,7 @@ describe("customer app budgets", () => {
     const dialog = within(await screen.findByRole("dialog", { name: "Budget for chat" }));
     expect(dialog.getByRole("textbox", { name: "Customer organization" })).toHaveValue("Customer Y");
     expect(dialog.getByRole("textbox", { name: "App", exact: true })).toHaveValue("chat");
-    expect(dialog.getByRole("combobox", { name: "Budget source" })).toHaveTextContent("Standard");
+    expect(dialog.getByRole("combobox", { name: "Budget source" })).toHaveTextContent("Tier 1");
     await user.click(dialog.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Add app budget" }));
     const fresh = within(await screen.findByRole("dialog", { name: "Add app budget" }));
@@ -250,7 +287,7 @@ describe("customer app budgets", () => {
     expect(member.getByRole("switch", { name: "Set per-member limits" })).toBeChecked();
     expect(member.getByRole("spinbutton", { name: "Monthly budget" })).toHaveValue(20);
     await user.click(limits.getByRole("combobox", { name: "Budget source" }));
-    await user.click(screen.getByRole("option", { name: /^Standard/ }));
+    await user.click(await screen.findByRole("option", { name: /^Tier 1/ }));
     await user.click(member.getByRole("switch", { name: "Set per-member limits" }));
     expect(screen.queryByRole("spinbutton", { name: "Monthly budget" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save app budget" }));

@@ -23,6 +23,7 @@ export default function CustomerBudgetGroupsEditor({
   disabled = false,
   showHeading = true,
   memberGroups = true,
+  appGroups = false,
   layout = "cards",
 }: {
   groups: CustomerBudgetGroupFields[];
@@ -31,9 +32,14 @@ export default function CustomerBudgetGroupsEditor({
   disabled?: boolean;
   showHeading?: boolean;
   memberGroups?: boolean;
+  appGroups?: boolean;
   layout?: "cards" | "table";
 }) {
   const { t } = useTranslation();
+  const globalGroupTitle = appGroups
+    ? "customerPortal.appOrganizationGroups.title"
+    : "customerPortal.organizationGroups.title";
+  const groupTitle = memberGroups ? "customerPortal.createDialog.groups" : globalGroupTitle;
   const updateGroup = (id: string, patch: Partial<Omit<CustomerBudgetGroupFields, "id">>) =>
     onChange(
       groups.map((group) => (group.id === id ? { ...group, ...patch } : group)),
@@ -71,21 +77,21 @@ export default function CustomerBudgetGroupsEditor({
   return (
     <section
       className={showHeading ? "space-y-3 border-t pt-5" : "space-y-3"}
-      aria-label={t(memberGroups ? "customerPortal.createDialog.groups" : "customerPortal.organizationGroups.title")}
+      aria-label={showHeading ? t(groupTitle) : undefined}
     >
       <div>
         {showHeading && <h3 className="font-medium">{t("customerPortal.createDialog.groups")}</h3>}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t(memberGroups ? "customerPortal.createDialog.groupsHelp" : "customerPortal.organizationGroups.help")}
-        </p>
+        {(showHeading || memberGroups) && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t(memberGroups ? "customerPortal.createDialog.groupsHelp" : "customerPortal.organizationGroups.help")}
+          </p>
+        )}
       </div>
       <RadioGroup
         role={memberGroups ? "radiogroup" : "group"}
         value={defaultGroupId}
         onValueChange={(value) => onChange(groups, String(value))}
-        aria-label={t(
-          memberGroups ? "customerPortal.createDialog.defaultGroup" : "customerPortal.organizationGroups.title",
-        )}
+        aria-label={t(memberGroups ? "customerPortal.createDialog.defaultGroup" : groupTitle)}
         disabled={disabled}
         className="gap-3"
       >

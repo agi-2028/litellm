@@ -2,10 +2,10 @@
 
 import { SearchSelect } from "@/components/shared/SearchSelect";
 import { useTranslation } from "react-i18next";
-import { $api } from "@/lib/http/api";
 import { extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
 import AppBudgetLimits from "./AppBudgetLimits";
+import { useAppBudgetGroups } from "./useAppBudgetGroups";
 
 export default function AppProfileSelect({
   id,
@@ -19,7 +19,7 @@ export default function AppProfileSelect({
   emptyLabel: string;
 }) {
   const { t } = useTranslation();
-  const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
+  const groups = useAppBudgetGroups([value]);
   const selected = groups.data?.default_budgets.find((group) => group.budget_id === value);
   return (
     <div className="space-y-1.5">

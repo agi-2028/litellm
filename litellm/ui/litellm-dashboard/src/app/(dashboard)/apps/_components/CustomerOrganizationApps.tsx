@@ -17,7 +17,7 @@ import { SearchSelect } from "@/components/shared/SearchSelect";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { $api, fetchClient } from "@/lib/http/api";
+import { fetchClient } from "@/lib/http/api";
 import { ApiError, extractProxyErrorMessage } from "@/lib/http/client";
 import { uiHref } from "@/utils/uiHref";
 import { appDefinitionKey, appResourcesKey, loadAppDefinition, loadAppResources, loadApps } from "./appApi";
@@ -33,6 +33,7 @@ import { CustomerBudgetSourceSelect } from "../../customers/_components/Customer
 import AppBudgetLimits from "./AppBudgetLimits";
 import { appBudgetWindows } from "./appBudgetPresentation";
 import { customerBudgetPeriod } from "../../customers/_components/customerBudgetUsage";
+import { useAppBudgetGroups } from "./useAppBudgetGroups";
 
 const organizationAppKey = (appId: string | null, organizationId: string) =>
   ["app-organization", appId, organizationId] as const;
@@ -218,11 +219,9 @@ function useOrganizationApps(organizationId: string) {
       retry: false,
     })),
   });
-  const groups = $api.useQuery(
-    "get",
-    "/management/v1/customer_organization_budget_groups",
-    {},
-    { enabled: resourceType !== null },
+  const groups = useAppBudgetGroups(
+    (apps.data ?? []).map((app, index) => associations[index]?.data?.tier_budget_id ?? app.default_tier_budget_id),
+    resourceType !== null,
   );
   const resources = useQuery({
     queryKey: appResourcesKey(resourceType),
@@ -391,7 +390,7 @@ function OrganizationAppForm({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const groups = $api.useQuery("get", "/management/v1/customer_organization_budget_groups", {});
+  const groups = useAppBudgetGroups([row?.tier_budget_id]);
   const [source, setSource] = useState(() => organizationBudgetSource(row));
   const [profile, setProfile] = useState(row?.tier_budget_id ?? "");
   const [override, setOverride] = useState(() =>

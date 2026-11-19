@@ -6,7 +6,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from litellm.proxy.management_helpers.apps import AppStore, app_scope_id, app_scope_identity
-from litellm.proxy.management_helpers.customer_hierarchy import ErrorCode, Failure
+from litellm.proxy.management_helpers.customer_hierarchy import BudgetGroupScope, ErrorCode, Failure
 from litellm.types.proxy.management_endpoints.apps import (
     App,
     AppCreate,
@@ -22,6 +22,8 @@ from litellm.types.proxy.management_endpoints.apps import (
 )
 from litellm.types.proxy.management_endpoints.customer_hierarchy import (
     Budget,
+    BudgetGroupChange,
+    BudgetGroups,
     BudgetGroupsUpdate,
     BudgetTemplate,
 )
@@ -180,6 +182,41 @@ async def app_store() -> tuple[AppDatabase, AppStore, App]:
     app: Final = await store.create(AppCreate(resource_id="chat"), "admin")
     assert isinstance(app, App)
     return database, store, app
+
+
+@pytest.mark.asyncio
+async def test_app_catalog_applies_to_defaults_and_assignments_and_protects_referenced_groups(
+    app_store: tuple[AppDatabase, AppStore, App],
+) -> None:
+    _, store, app = app_store
+    groups: Final = await store.customers.configure_templates(
+        None,
+        BudgetGroupsUpdate(
+            expected_revision=BudgetGroups().budget_groups_revision,
+            default_budget_template=None,
+            default_budgets=(BudgetGroupChange(name="Tier 1", max_budget=50, tpm_limit=1000, rpm_limit=10),),
+        ),
+        "admin",
+        scope=BudgetGroupScope.APP_ORGANIZATION,
+    )
+    assert isinstance(groups, BudgetGroups)
+    tier: Final = groups.default_budgets[0]
+    saved: Final = await store.patch(app.app_id, AppPatch(default_tier_budget_id=tier.budget_id), "admin")
+    assert isinstance(saved, App) and saved.default_tier_budget_id == tier.budget_id
+    assignment: Final = await store.put_organization(
+        app.app_id, "org", AppOrganizationPut(tier_budget_id=tier.budget_id), "admin"
+    )
+    assert isinstance(assignment, AppOrganization) and assignment.effective_budget is not None
+    assert assignment.effective_budget.max_budget == 50
+    assert assignment.effective_budget.tpm_limit == 1000 and assignment.effective_budget.rpm_limit == 10
+    deleted: Final = await store.customers.configure_templates(
+        None,
+        BudgetGroupsUpdate(expected_revision=groups.budget_groups_revision, default_budget_template=None, default_budgets=()),
+        "admin",
+        scope=BudgetGroupScope.APP_ORGANIZATION,
+    )
+    assert deleted == Failure(ErrorCode.TEMPLATE_IN_USE)
+    assert await store.customers.get_budget_groups(None, scope=BudgetGroupScope.APP_ORGANIZATION) == groups
 
 
 @pytest.mark.asyncio

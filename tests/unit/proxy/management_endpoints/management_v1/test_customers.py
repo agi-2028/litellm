@@ -333,6 +333,8 @@ def test_member_window_override_round_trip_and_clear(clear_limits: object) -> No
         ("GET", "/customer_organizations", None),
         ("GET", "/customer_organization_budget_groups", None),
         ("PATCH", "/customer_organization_budget_groups", {}),
+        ("GET", "/app_customer_organization_budget_groups", None),
+        ("PATCH", "/app_customer_organization_budget_groups", {}),
         ("GET", "/customer_organizations/id", None),
         ("PATCH", "/customer_organizations/id", {}),
         ("DELETE", "/customer_organizations/id", None),
@@ -2295,6 +2297,51 @@ def organization_groups(http: TestClient, *groups: Mapping[str, object]) -> Budg
     )
     assert response.status_code == 200, response.text
     return BudgetGroups.model_validate_json(response.content)
+
+
+def test_app_and_organization_catalogs_have_independent_ids_edits_and_revisions() -> None:
+    http: Final = client()
+    organization: Final = organization_groups(http, {"name": "Standard", "tpm_limit": 1000})
+    path: Final = "/management/v1/app_customer_organization_budget_groups"
+    empty: Final = http.get(path).json()
+    assert empty["default_budgets"] == []
+    created: Final = http.patch(
+        path,
+        json={
+            "expected_revision": empty["budget_groups_revision"],
+            "default_budget_template": None,
+            "default_budgets": [{"name": "Tier 1", "rpm_limit": 100}],
+        },
+    )
+    assert created.status_code == 200, created.text
+    app: Final = BudgetGroups.model_validate_json(created.content)
+    assert app.default_budgets[0].budget_id != organization.default_budgets[0].budget_id
+    assert app.default_budgets[0].rpm_limit == 100
+    assert http.get("/management/v1/customer_organization_budget_groups").json() == organization.model_dump(mode="json")
+    wrong_scope: Final = http.patch(
+        path,
+        json={
+            "expected_revision": app.budget_groups_revision,
+            "default_budget_template": None,
+            "default_budgets": [{"budget_id": organization.default_budgets[0].budget_id, "name": "Wrong scope"}],
+        },
+    )
+    assert wrong_scope.status_code == 422, wrong_scope.text
+    stale: Final = http.patch(
+        path,
+        json={"expected_revision": empty["budget_groups_revision"], "default_budget_template": None, "default_budgets": []},
+    )
+    assert stale.status_code == 409, stale.text
+    updated: Final = organization_groups(
+        http, {"budget_id": organization.default_budgets[0].budget_id, "name": "Scale", "tpm_limit": 2000}
+    )
+    assert updated.default_budgets[0].tpm_limit == 2000
+    assert http.get(path).json() == app.model_dump(mode="json")
+    rejected: Final = http.post(
+        "/management/v1/customer_organizations",
+        json={"customer_org_id": "wrong-scope", "budget_id": app.default_budgets[0].budget_id},
+    )
+    assert rejected.status_code == 422, rejected.text
 
 
 @pytest.mark.parametrize("method", ("PATCH", "POST"))
